@@ -7,45 +7,55 @@ from typing import Callable
 
 from application.services.outbox import EventDispatcher, OutboxRunner
 from application.usecases.auth import Authorize
+from application.usecases.jobs import GetJobStatusUseCase
 from infrastructure.auth.keycloak import KeycloakVerifier
 from infrastructure.config import Settings, get_settings
 from infrastructure.observability.logger import LoggingService
 from infrastructure.persistence.database import SqlDatabase
 from infrastructure.persistence.uow import SqlUnitOfWork
-
+from dataclasses import dataclass
 logger = getLogger(__name__)
 
 
+@dataclass
 class App:
     """Application facade used by entrypoints."""
 
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        logger.info(
-            "Initializing application name=%s version=%s env=%s",
-            settings.name,
-            settings.version,
-            settings.env,
-        )
-        self.database = SqlDatabase(settings.database)
-        self.database.create_all()
-        self.uow_factory: Callable[[], SqlUnitOfWork] = lambda: SqlUnitOfWork(
-            self.database.sessions(),
-            self.settings.outbox,
-        )
-        self.dispatcher = EventDispatcher()
-        self.authorize = Authorize(KeycloakVerifier(settings.keycloak))
+    settings: Settings
+    database: SqlDatabase
+    dispatcher: EventDispatcher
+    authorize: Authorize
+    runner: OutboxRunner
+    get_job_status: GetJobStatusUseCase
 
-        self.runner = OutboxRunner(
-            dispatcher=self.dispatcher,
+
+    @classmethod
+    def create(cls, settings: Settings) -> App: 
+        database = SqlDatabase(settings.database)
+        database.create_all()
+        dispatcher = EventDispatcher()
+        authorize = Authorize(KeycloakVerifier(settings.keycloak))
+        get_job_status = GetJobStatusUseCase(lambda: SqlUnitOfWork(
+            database.sessions(),
+            settings.outbox,
+        ))
+        runner = OutboxRunner(
+            dispatcher=dispatcher,
             events=(),
-            limit=self.settings.worker_batch_limit,
-            factory=self.uow_factory,
+            limit=settings.worker_batch_limit,
+            factory=lambda: SqlUnitOfWork(
+                database.sessions(),
+                settings.outbox,
+            ),
         )
-        logger.info(
-            "Application initialized database_provider=%s worker_batch_limit=%s",
-            settings.database.provider,
-            settings.worker_batch_limit,
+
+        return cls(
+            settings=settings,
+            database=database,
+            dispatcher=dispatcher,
+            authorize=authorize,
+            runner=runner,
+            get_job_status=get_job_status,
         )
 
     @property
@@ -60,13 +70,15 @@ class App:
     def healthy(self) -> bool:
         return True
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """Start the application."""
         logger.info(f"Starting {self.name} v{self.version}...")
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the application."""
         logger.info(f"Closing {self.name}...")
+        self.database.close()
+
 
     async def daemon(self) -> None:
         """Run background tasks."""
@@ -81,4 +93,4 @@ def get_app() -> App:
     """Build the application from concrete infrastructure adapters."""
     settings = get_settings()
     LoggingService.setup(settings.logging)
-    return App(settings=settings)
+    return App.create(settings=settings)

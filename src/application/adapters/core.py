@@ -35,6 +35,15 @@ class CrudRepo(Protocol[EntityT]):
 
 
 @runtime_checkable
+class JobRepo(Protocol):
+    """Reads background job status by identifier."""
+
+    def get(self, job_id: str, /) -> OutboxJob | None:
+        """Read one job by id."""
+        ...
+
+
+@runtime_checkable
 class OutboxRepo(Protocol):
     """Persists durable queued work."""
 
@@ -78,6 +87,7 @@ class UnitOfWork(Protocol):
     """Coordinates repositories that share one transactional session."""
 
     # REPOSITORIES
+    job: JobRepo
     outbox: OutboxRepo
 
     def __enter__(self) -> UnitOfWork:

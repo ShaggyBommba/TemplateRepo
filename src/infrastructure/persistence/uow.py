@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class SqlUnitOfWork(UnitOfWork):
     """SQLAlchemy-backed unit of work for repository transactions."""
 
+    job: OutboxRepo
     outbox: OutboxRepo
 
     def __init__(
@@ -41,7 +42,11 @@ class SqlUnitOfWork(UnitOfWork):
         self.committed = False
         logger.debug("Opened SQL unit of work")
 
-        self.outbox = OutboxRepo(self.session, self.outbox_settings)
+        self.outbox = OutboxRepo(
+            self.session,
+            self.outbox_settings,
+        )
+        self.job = self.outbox
 
         return self
 

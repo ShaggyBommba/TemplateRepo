@@ -60,14 +60,14 @@ See [docs/tests.md](docs/tests.md) for testing conventions.
 ## Project Layout
 
 ```text
-src/
+  src/
   domain/          # entities, value objects, domain errors, events, value enums
   application/     # app facade, use cases, services, handlers, ports
   infrastructure/  # config, persistence, concrete adapters, logging
   presentation/    # HTTP, worker, CLI, or other process entrypoints
   main.py          # optional local process launcher
 tests/             # pytest suite
-docs/              # architecture, rules, workflows, tests, and agent guidance
+  docs/              # architecture, rules, workflows, tests, and agent guidance
 ```
 
 The documentation set is written for both engineers and AI coding agents:
@@ -78,3 +78,22 @@ The documentation set is written for both engineers and AI coding agents:
 - [docs/architecture.md](docs/architecture.md) defines the template
   architecture and extension blueprints.
 - [docs/tests.md](docs/tests.md) defines testing conventions.
+
+## Job API Surface
+
+Job endpoints are registered under `/jobs`:
+
+- `GET /jobs/{job_id}`
+  - Returns `JobStatusResponse` for a single job.
+  - Response status codes:
+    - `202` while the job is still `pending`/`running`
+    - `200` for terminal states.
+- `GET /jobs/ws/{job_id}` (WebSocket)
+  - Opens a persistent stream of job-status updates for the same `job_id`.
+  - Useful for UI or CLI clients that need live progress.
+  - Each message mirrors `JobStatusResponse` fields.
+  - The connection is typically closed by the server when status is terminal
+    (`done` / `failed`).
+
+Swagger/OpenAPI in FastAPI is HTTP-focused, so this websocket route is not shown in
+`/docs` by default; keep this section as the canonical websocket contract for clients.

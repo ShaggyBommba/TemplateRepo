@@ -7,13 +7,17 @@ import asyncio
 from application.app import get_app
 
 
-def main() -> None:
+async def run() -> None:
     app = get_app()
-    app.start()
+    await app.start()
     try:
-        asyncio.run(app.daemon())
+        await app.daemon()
     finally:
-        app.close()
+        await app.close()
+
+
+def main() -> None:
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

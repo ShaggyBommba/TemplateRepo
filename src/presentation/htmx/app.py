@@ -19,11 +19,11 @@ from presentation.htmx.routes.system import routes as system_routes
 async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan side-effects cleanly."""
     app = get_app()
-    app.start()
+    await app.start()
     try:
         yield
     finally:
-        app.close()
+        await app.close()
 
 
 def api() -> FastAPI:

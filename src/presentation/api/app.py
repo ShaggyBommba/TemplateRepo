@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from application.app import get_app
 from infrastructure.config import get_settings
 from presentation.api.routes.auth import routes as auth_routes
+from presentation.api.routes.jobs import routes as jobs_routes
 from presentation.api.routes.system import routes as system_routes
 
 
@@ -18,11 +19,11 @@ from presentation.api.routes.system import routes as system_routes
 async def lifespan(fastapi_app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan side-effects cleanly."""
     app = get_app()
-    app.start()
+    await app.start()
     try:
         yield
     finally:
-        app.close()
+        await app.close()
 
 
 def api() -> FastAPI:
@@ -36,6 +37,7 @@ def api() -> FastAPI:
 
     # Register API routes
     fastapi_app.include_router(auth_routes)
+    fastapi_app.include_router(jobs_routes)
     fastapi_app.include_router(system_routes)
 
     return fastapi_app

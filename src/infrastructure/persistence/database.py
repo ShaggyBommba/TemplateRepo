@@ -1,10 +1,12 @@
 from __future__ import annotations
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from infrastructure.config import DatabaseSettings
-
+import psycopg
 
 class Base(DeclarativeBase):
     """Infrastructure foundation that our Shared Kernel models inherit from."""
@@ -32,6 +34,11 @@ class SqlDatabase:
             self.sessions_cache = sessionmaker(bind=self.engine())
         return self.sessions_cache
 
+    @asynccontextmanager
+    async def connection(self) -> AsyncGenerator[psycopg.AsyncConnection, None]:
+        async with await psycopg.AsyncConnection.connect(self.settings.dsn) as conn:
+            yield conn
+            
     def create_all(self) -> None:
         """Provision extensions and create all known database tables."""
         import infrastructure.persistence.models  # noqa: F401

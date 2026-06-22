@@ -260,6 +260,25 @@ class ThingCreatedHandler:
             self.create_thing,
             event.payload["name"],
         )
+
+## Jobs Route and WebSocket Contract
+
+The template exposes job status via two routes in `presentation/api/routes/jobs.py`:
+
+- `GET /jobs/{job_id}`
+  - Returns current job status from the outbox row.
+  - Uses `app.get_job_status(job_id)` and translates `JobNotFound` to `404`.
+  - Uses `202 Accepted` for `pending`/`running` and `200 OK` otherwise.
+- `GET /jobs/ws/{job_id}` (WebSocket)
+  - Streams JSON status updates for one job id over a long-lived socket.
+  - The handler subscribes to the Postgres outbox notification channel and
+    forwards updates where `payload.id == job_id`.
+  - The route closes with code `1000` after terminal states (`done`, `failed`) so
+    clients can exit cleanly.
+
+Because Swagger/OpenAPI documents HTTP operations only, websocket routes are not
+listed in `/docs` by default; they should be considered separately from
+auto-generated OpenAPI docs.
 ```
 
 ## Service / Use Case Blueprint

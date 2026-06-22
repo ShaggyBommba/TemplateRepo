@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from domain.entity import OutboxJob
@@ -20,9 +20,35 @@ logger = logging.getLogger(__name__)
 class OutboxRepo:
     """SQL-backed outbox repository."""
 
-    def __init__(self, session: Session, settings: OutboxSettings) -> None:
+    def __init__(
+        self,
+        session: Session,
+        settings: OutboxSettings,
+    ) -> None:
         self.session = session
         self.settings = settings
+
+
+
+    def notify(self, job: OutboxJob[dict[str, Any]]) -> None:
+        """Notify listeners of outbox job status changes."""
+        try:
+            self.session.execute(
+                select(func.pg_notify(self.settings.output_channel, job.model_dump_json()))
+            )
+            self.session.flush()
+            logger.debug(
+                "Sent outbox notification for job id=%s status=%s",
+                job.id,
+                job.status,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to send outbox notification for job id=%s status=%s: %s",
+                job.id,
+                job.status,
+                exc,
+            )
 
     def append(
         self,
@@ -49,6 +75,9 @@ class OutboxRepo:
             available_at=now(),
         )
         self.session.add(row)
+        self.session.flush()
+        self.notify(row.to_domain())
+
         logger.info(
             "Appended outbox job id=%s topic=%s kind=%s version=%s idempotency_key=%s",
             row.id,
@@ -57,6 +86,13 @@ class OutboxRepo:
             version,
             idempotency_key,
         )
+        return row.to_domain()
+
+    def get(self, job_id: str) -> OutboxJob[dict[str, Any]] | None:
+        row = self.session.get(OutboxRow, job_id)
+        if row is None:
+            logger.debug("Outbox job not found id=%s", job_id)
+            return None
         return row.to_domain()
 
     def due(
@@ -121,6 +157,9 @@ class OutboxRepo:
             row.status = JobStatus.RUNNING.value
             row.locked_at = locked_at
             row.attempts += 1
+            self.session.flush()
+            self.notify(row.to_domain())
+
         if rows:
             logger.info(
                 "Claimed %s outbox row(s) topic=%s kind=%s version=%s",
@@ -152,6 +191,8 @@ class OutboxRepo:
             row.locked_at = None
             row.last_error = error
             logger.info("Marked outbox job done id=%s", job_id)
+            self.session.flush()
+            self.notify(row.to_domain())
             return
 
         if status == JobStatus.FAILED or not retry or row.attempts >= row.max_attempts:
@@ -165,6 +206,8 @@ class OutboxRepo:
                 row.max_attempts,
                 error,
             )
+            self.session.flush()
+            self.notify(row.to_domain())
             return
 
         row.status = JobStatus.PENDING.value
@@ -178,3 +221,5 @@ class OutboxRepo:
             row.max_attempts,
             error,
         )
+        self.session.flush()
+        self.notify(row.to_domain())

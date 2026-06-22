@@ -39,7 +39,7 @@ class DatabaseSettings(BaseModel):
                 return f"sqlite:///{PACKAGE_ROOT / self.database}.db"
             case "postgresql":
                 return (
-                    f"postgresql://{self.user}:{self.password.get_secret_value()}"
+                    f"postgresql+psycopg://{self.user}:{self.password.get_secret_value()}"
                     f"@{self.host}:{self.port}/{self.database}"
                 )
             case _:
@@ -51,6 +51,7 @@ class OutboxSettings(BaseModel):
 
     default_max_attempts: int = Field(default=3, ge=1)
     claim_timeout_seconds: int = Field(default=300, ge=1)
+    output_channel: str = "default"
 
 
 class KeycloakSettings(BaseModel):
