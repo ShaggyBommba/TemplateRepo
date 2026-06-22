@@ -1,0 +1,80 @@
+{% extends "shared/layout.html" %}
+
+{% block title %}Signing in - {{ state.name }}{% endblock %}
+
+{% block content %}
+<section
+  class="callback-panel card"
+  x-data="authCallback()"
+  x-cloak
+  @htmx:after-swap.window="handleSwap($event)"
+  @htmx:response-error.window="handleError($event)"
+>
+  <form id="callback-fields" hidden aria-hidden="true">
+    <input type="hidden" name="code" value="{{ code }}">
+    <input type="hidden" name="state" value="{{ oauth_state }}">
+  </form>
+
+  <div
+    hx-get="/auth/callback/verify"
+    hx-trigger="load"
+    hx-include="#callback-fields"
+    hx-target="#callback-result"
+    hx-swap="innerHTML"
+  ></div>
+  <div id="callback-result" hidden></div>
+
+  <div x-show="state === 'authenticating'" x-transition.opacity.duration.150ms>
+    <span class="spinner" aria-hidden="true"></span>
+    <h1>Signing in</h1>
+    <p>Authenticating with your identity provider.</p>
+  </div>
+
+  <div x-show="state === 'success'" x-transition.opacity.duration.150ms>
+    <h1>Signed in</h1>
+    <p>Redirecting to your workspace.</p>
+  </div>
+
+  <div x-show="state === 'error'" x-transition.opacity.duration.150ms>
+    <h1>Sign-in failed</h1>
+    <p class="danger" role="alert" x-text="message"></p>
+    <p><a class="button" href="/login">Try again</a></p>
+  </div>
+</section>
+
+<script>
+  function authCallback() {
+    return {
+      state: "authenticating",
+      message: "",
+      handleSwap(event) {
+        if (event.detail.target.id !== "callback-result") {
+          return;
+        }
+
+        const result = event.detail.target.querySelector("[data-auth-state]");
+        if (!result) {
+          return;
+        }
+
+        this.state = result.dataset.authState || "error";
+        this.message = result.dataset.message || "";
+
+        if (this.state === "success") {
+          const redirectTo = result.dataset.redirectTo || "/";
+          window.setTimeout(() => window.location.assign(redirectTo), 400);
+        }
+      },
+      handleError(event) {
+        const path = event.detail.requestConfig?.path || "";
+        if (!path.startsWith("/auth/callback/verify")) {
+          return;
+        }
+
+        this.state = "error";
+        this.message = event.detail.xhr?.responseText || "Authentication failed.";
+      },
+    };
+  }
+</script>
+{% endblock %}

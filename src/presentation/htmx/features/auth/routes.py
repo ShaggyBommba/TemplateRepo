@@ -1,4 +1,4 @@
-"""HTMX browser login and logout routes."""
+"""HTMX browser login and OAuth callback routes."""
 
 from __future__ import annotations
 
@@ -7,11 +7,14 @@ from typing import Any
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.templating import Jinja2Templates
 
-from infrastructure.config import KeycloakSettings, get_settings
+from application.app import App, get_app
+from infrastructure.config import KeycloakSettings, SessionSettings, get_settings
 from presentation.htmx import security
+from presentation.htmx.dependencies import surface_state, template_engine
 
 routes = APIRouter(tags=["auth"])
 
@@ -35,21 +38,56 @@ def login(request: Request) -> RedirectResponse:
     return response
 
 
-@routes.get("/callback")
-def callback(request: Request, code: str, state: str) -> RedirectResponse:
+@routes.get("/callback", response_class=HTMLResponse, name="callback")
+def callback(
+    request: Request,
+    code: str = "",
+    state: str = "",
+    app: App = Depends(get_app),
+    templates: Jinja2Templates = Depends(template_engine),
+) -> HTMLResponse:
     settings = get_settings()
-    response = RedirectResponse("/")
-    security.pop_state(response, settings.session)
+    return templates.TemplateResponse(
+        request,
+        "auth/callback.html",
+        {
+            "state": surface_state(app).model_dump(),
+            "user": security.get(request, settings.session),
+            "code": code,
+            "oauth_state": state,
+        },
+    )
+
+
+@routes.get("/auth/callback/verify", response_model=None)
+def verify_callback(
+    request: Request,
+    code: str = "",
+    state: str = "",
+) -> Response:
+    settings = get_settings()
+
+    if not code or not state:
+        return error("Missing authentication callback parameters.", settings.session)
 
     if not security.valid_state(request, settings.session, state):
-        raise HTTPException(400, "invalid login state")
+        return error("Invalid login state.", settings.session)
 
     redirect_uri = str(request.url_for("callback"))
     try:
         token = exchange(settings.keycloak, code, redirect_uri)
         user = userinfo(settings.keycloak, token["access_token"])
-    except httpx.HTTPError as exc:
-        raise HTTPException(400, "login failed") from exc
+    except HTTPException as exc:
+        return error(str(exc.detail), settings.session)
+    except httpx.HTTPError:
+        return error("Login failed.", settings.session)
+
+    response = HTMLResponse(
+        '<div data-auth-state="success" data-redirect-to="/">'
+        "Authentication succeeded."
+        "</div>"
+    )
+    security.pop_state(response, settings.session)
     security.set_session(
         response,
         settings.session,
@@ -78,6 +116,12 @@ def logout(request: Request) -> RedirectResponse:
     )
     response = RedirectResponse(f"{settings.keycloak.logout_url}?{params}")
     security.clear_session(response, settings.session)
+    return response
+
+
+def error(message: str, settings: SessionSettings) -> PlainTextResponse:
+    response = PlainTextResponse(message, status_code=400)
+    security.pop_state(response, settings)
     return response
 
 

@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "shared/layout.html" %}
 
 {% block content %}
 <div x-data='statusPanel({{ state | tojson }})'>
@@ -8,12 +8,6 @@
       <p>Layered service template</p>
     </div>
     <div class="actions">
-      {% if user %}
-        <span class="user">{{ user.username }}</span>
-        <a class="button" href="/logout">Logout</a>
-      {% else %}
-        <a class="button" href="/login">Login</a>
-      {% endif %}
       <button
         type="button"
         @click="refresh()"
@@ -45,14 +39,14 @@
       <span class="value" x-text="state.version">{{ state.version }}</span>
     </article>
     <article class="card">
-      <span class="label">Alpine</span>
+      <span class="label">HTMX</span>
       <span class="value">Enabled</span>
     </article>
   </section>
 
   <template x-if="error">
     <p
-      class="card error warn"
+      class="card error danger"
       role="alert"
       x-text="error"
       x-transition.opacity.duration.150ms

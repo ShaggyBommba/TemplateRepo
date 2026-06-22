@@ -1,0 +1,14 @@
+<nav class="navbar" aria-label="Global">
+  <div class="navbar-inner">
+    <a class="brand" href="/">{{ state.name }}</a>
+    <div class="nav-actions">
+      <a class="nav-link" href="/system">System</a>
+      {% if user %}
+        <span class="user">{{ user.username }}</span>
+        <a class="button" href="/logout">Logout</a>
+      {% else %}
+        <a class="button" href="/login">Login</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>

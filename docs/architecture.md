@@ -162,14 +162,45 @@ HTMX browser login flow:
 
 - `GET /login` redirects the browser to Keycloak's authorization endpoint with
   a signed state cookie.
-- `GET /callback` validates the state cookie, exchanges the authorization code
-  at Keycloak's token endpoint, reads the userinfo endpoint, and stores a small
-  signed local session cookie.
+- `GET /callback` renders the OAuth callback state page from
+  `src/presentation/htmx/features/auth/callback.html`.
+- The callback page uses htmx on load to call
+  `GET /auth/callback/verify`, which validates the state cookie, exchanges the
+  authorization code at Keycloak's token endpoint, reads the userinfo endpoint,
+  and stores a small signed local session cookie.
 - `GET /logout` clears the local session and redirects to Keycloak's logout
   endpoint.
 - Browser session cookies are presentation concerns in
   `src/presentation/htmx/security.py`; they do not replace API bearer-token
   authorization for protected API routes.
+
+HTMX presentation modules are feature-based so browser behavior stays local to
+the feature that owns it:
+
+```text
+src/presentation/htmx/
+  app.py
+  dependencies.py
+  security.py
+  features/
+    shared/
+      layout.html
+      navbar.html
+    auth/
+      routes.py
+      callback.html
+    home/
+      routes.py
+      index.html
+      partials/
+    system/
+      routes.py
+      index.html
+```
+
+`src/presentation/htmx/app.py` owns the `Jinja2Templates` instance and roots it
+at `src/presentation/htmx/features`, so feature routes render with
+feature-prefixed paths such as `home/index.html` and `auth/callback.html`.
 
 Keycloak realm configuration lives in
 `infrastructure/config/keycloak/realm-export.json`. The template client uses
