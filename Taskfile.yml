@@ -1,0 +1,83 @@
+version: "3"
+
+vars:
+  IMAGE: ghcr.io/ShaggyBommba/bazzpara
+  REGISTRY: bazzpara
+  TAG: latest
+
+tasks:
+  sync:
+    desc: Install dependencies
+    cmds:
+      - uv sync --dev
+
+  test:
+    desc: Run backend tests
+    cmds:
+      - uv run python -m pytest
+
+  lint:
+    desc: Lint backend source
+    cmds:
+      - uv run python -m ruff check src tests
+
+  format:
+    desc: Format backend source
+    cmds:
+      - uv run python -m ruff format src tests
+
+  check:
+    desc: Run backend checks
+    cmds:
+      - task: lint
+      - task: test
+
+  infra:
+    desc: Start infrastructure containers if they are not already running
+    cmds:
+      - docker-compose -f infrastructure/docker-compose.yml --profile infrastructure up -d
+    status:
+      - docker compose -f infrastructure/docker-compose.yml ps --format json db | grep -q '"State":"running"'
+
+  dev:
+    desc: Run the application in development mode
+    cmds:
+      - task: infra
+      - uv run dev
+
+  clean:
+    desc: Remove backend cache files
+    cmds:
+      - find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
+      - find src tests -type f -name "*.py[co]" -delete
+      - rm -rf .pytest_cache .ruff_cache src/*.egg-info
+
+  build:
+      desc: Build the Docker image
+      cmds:
+        - docker build -t {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}} .
+
+  push:
+    desc: Push the Docker image to the registry
+    deps: [build]
+    cmds:
+      - docker push {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}}
+
+  deploy:
+    desc: Deploy the Docker image to production
+    deps: [push]
+    cmds:
+      - echo "Deploying {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}} to production..."
+      - >
+        docker run -d --name {{.IMAGE}}
+        -p ${{APP_API_PORT}}:${{APP_API_PORT}}
+        -p ${{APP_HTMX_PORT}}:${{APP_HTMX_PORT}}
+        -p ${{APP_MCP_PORT}}:${{APP_MCP_PORT}}
+        {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}}
+  
+  default:
+    desc: Show all tasks
+    cmds:
+      - task --list
+  
+  

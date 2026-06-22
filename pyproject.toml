@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "template"
+version = "0.1.0"
+description = "template backend service."
+readme = { text = "template backend service.", content-type = "text/plain" }
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "click>=8.4.1,<9",
+  "fastapi>=0.123,<1",
+  "httpx>=0.27,<1",
+  "jinja2>=3.1.6,<4",
+  "mcp>=1",
+  "minio>=7.2.0,<8",
+  "playwright>=1.60.0,<2",
+  "psycopg2-binary>=2.9.12",
+  "pydantic>=2.13.4,<3",
+  "pydantic-settings>=2.14.1,<3",
+  "pyjwt[crypto]>=2.13.0,<3",
+  "python-dotenv>=1.2.2,<2",
+  "python-multipart>=0.0.20,<1",
+  "python-slugify>=8.0.4",
+  "sqlalchemy>=2.0.0,<3",
+  "uvicorn>=0.49,<1",
+]
+
+[project.scripts]
+dev = "main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["__main__"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-ra"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.4.0",
+    "nbstripout>=0.9.1",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.14.8",
+]

@@ -1,0 +1,68 @@
+services:
+
+  # Database service will use Postgres for storing application data.
+  # But also handeling the jobs using the outbox pattern.
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${APP_DATABASE__DATABASE:-app}
+      POSTGRES_USER: ${APP_DATABASE__USER:-app}
+      POSTGRES_PASSWORD: ${APP_DATABASE__PASSWORD:-app}
+    ports:
+      - "${APP_DATABASE__HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    profiles:
+      - infrastructure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DATABASE__USER:-app} -d ${APP_DATABASE__DATABASE:-app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Keycloak service for authentication and authorization.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${APP_KEYCLOAK__ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${APP_KEYCLOAK__ADMIN_PASSWORD:-admin}
+      # Database configuration
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/${APP_DATABASE__DATABASE:-app}
+      KC_DB_USERNAME: ${APP_DATABASE__USER:-app}
+      KC_DB_PASSWORD: ${APP_DATABASE__PASSWORD:-app}
+      # HTTP configuration
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "${APP_KEYCLOAK__PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - infrastructure
+    restart: unless-stopped
+    volumes:
+      - ./config/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\n\r\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Log viewer for monitoring application logs in real-time.
+  dozzle:
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "${APP_DOZZLE__HOST_PORT:-8888}:8080"
+    profiles:
+      - infrastructure
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

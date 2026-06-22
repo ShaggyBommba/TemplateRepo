@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.*
+!.env.example
+**/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.python-version-default
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.egg-info/
+build/
+dist/
+.eggs/
+pip-wheel-metadata/
+
+# Local environments
+.venv/
+**/.venv/
+venv/
+env/
+
+# Local runtime state
+.logs/
+downloads/
+.amex-browser-profile/
+*.db
+*.db-shm
+*.db-wal
+services/backend/.data/
+services/backend/.logs/
+services/backend/uploads/
+services/backend/vault/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+app.db

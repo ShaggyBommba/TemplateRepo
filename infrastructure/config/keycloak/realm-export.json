@@ -1,0 +1,96 @@
+{
+  "id": "template",
+  "realm": "template",
+  "enabled": true,
+  "roles": {
+    "client": {
+      "template": [
+        {
+          "name": "users:create",
+          "description": "Permission to create users"
+        },
+        {
+          "name": "users:read",
+          "description": "Permission to read user data"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "template",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "secret": "template-secret",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:*/*"
+      ],
+      "webOrigins": [
+        "+"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "Admin",
+      "path": "/Admin",
+      "clientRoles": {
+        "template": [
+          "users:create",
+          "users:read"
+        ]
+      }
+    },
+    {
+      "name": "User",
+      "path": "/User",
+      "clientRoles": {
+        "template": [
+          "users:read"
+        ]
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "API",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "AdminPass123!",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "Admin"
+      ]
+    },
+    {
+      "username": "user",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Regular",
+      "lastName": "User",
+      "email": "user@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "UserPass123!",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "User"
+      ]
+    }
+  ]
+}

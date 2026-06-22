@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div x-data='statusPanel({{ state | tojson }})'>
+  <header>
+    <div>
+      <h1 x-text="state.name">{{ state.name }}</h1>
+      <p>Layered service template</p>
+    </div>
+    <div class="actions">
+      {% if user %}
+        <span class="user">{{ user.username }}</span>
+        <a class="button" href="/logout">Logout</a>
+      {% else %}
+        <a class="button" href="/login">Login</a>
+      {% endif %}
+      <button
+        type="button"
+        @click="refresh()"
+        :disabled="loading"
+        :aria-busy="loading.toString()"
+      >
+        <span x-text="loading ? 'Refreshing...' : 'Refresh status'">Refresh status</span>
+      </button>
+    </div>
+  </header>
+
+  <section
+    id="status"
+    class="grid"
+    aria-live="polite"
+    :aria-busy="loading.toString()"
+    x-transition.opacity.duration.150ms
+  >
+    <article class="card">
+      <span class="label">Status</span>
+      <span
+        class="value"
+        :class="state.healthy ? 'ok' : 'warn'"
+        x-text="state.status"
+      >{{ state.status }}</span>
+    </article>
+    <article class="card">
+      <span class="label">Version</span>
+      <span class="value" x-text="state.version">{{ state.version }}</span>
+    </article>
+    <article class="card">
+      <span class="label">Alpine</span>
+      <span class="value">Enabled</span>
+    </article>
+  </section>
+
+  <template x-if="error">
+    <p
+      class="card error warn"
+      role="alert"
+      x-text="error"
+      x-transition.opacity.duration.150ms
+    ></p>
+  </template>
+</div>
+
+<nav class="links" aria-label="System endpoints">
+  <a href="/health">Health JSON</a>
+  <a href="/version">Version JSON</a>
+</nav>
+
+<script>
+  function statusPanel(initialState) {
+    return {
+      state: initialState,
+      loading: false,
+      error: "",
+      async refresh() {
+        this.loading = true;
+        this.error = "";
+
+        try {
+          const response = await fetch("/status", {
+            headers: { Accept: "application/json" },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Status request failed with ${response.status}`);
+          }
+
+          this.state = {
+            ...this.state,
+            ...(await response.json()),
+          };
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "unknown error";
+          this.error = `Unable to refresh status: ${detail}`;
+        } finally {
+          this.loading = false;
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}
