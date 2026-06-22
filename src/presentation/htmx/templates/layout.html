@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>{% block title %}{{ state.name }}{% endblock %}</title>
+    <script src="/static/vendor/htmx.min.js"></script>
+    <script defer src="/static/vendor/alpinejs.min.js"></script>
+    <link rel="stylesheet" href="/static/css/app.css">
+  </head>
+  <body>
+    <div class="shell">
+      {% include "navbar.html" %}
+      <div class="workspace">
+        <main id="content">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

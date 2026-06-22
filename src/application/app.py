@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 from asyncio import sleep
+from dataclasses import dataclass
 from functools import lru_cache
 from logging import getLogger
-from typing import Callable
 
 from application.services.outbox import EventDispatcher, OutboxRunner
-from application.usecases.auth import Authorize
+from application.usecases.auth import Authenticate, Authorize
 from application.usecases.jobs import GetJobStatusUseCase
 from infrastructure.auth.keycloak import KeycloakVerifier
 from infrastructure.config import Settings, get_settings
 from infrastructure.observability.logger import LoggingService
 from infrastructure.persistence.database import SqlDatabase
 from infrastructure.persistence.uow import SqlUnitOfWork
-from dataclasses import dataclass
+
 logger = getLogger(__name__)
 
 
@@ -24,35 +24,39 @@ class App:
     settings: Settings
     database: SqlDatabase
     dispatcher: EventDispatcher
+    authenticate: Authenticate
     authorize: Authorize
     runner: OutboxRunner
     get_job_status: GetJobStatusUseCase
 
-
     @classmethod
-    def create(cls, settings: Settings) -> App: 
+    def create(cls, settings: Settings) -> App:
         database = SqlDatabase(settings.database)
         database.create_all()
         dispatcher = EventDispatcher()
-        authorize = Authorize(KeycloakVerifier(settings.keycloak))
-        get_job_status = GetJobStatusUseCase(lambda: SqlUnitOfWork(
-            database.sessions(),
-            settings.outbox,
-        ))
+
+        def uow_factory() -> SqlUnitOfWork:
+            return SqlUnitOfWork(
+                database.sessions(),
+                settings.outbox,
+            )
+
+        verifier = KeycloakVerifier(settings.keycloak)
+        authenticate = Authenticate(verifier)
+        authorize = Authorize(verifier)
+        get_job_status = GetJobStatusUseCase(uow_factory)
         runner = OutboxRunner(
             dispatcher=dispatcher,
             events=(),
             limit=settings.worker_batch_limit,
-            factory=lambda: SqlUnitOfWork(
-                database.sessions(),
-                settings.outbox,
-            ),
+            factory=uow_factory,
         )
 
         return cls(
             settings=settings,
             database=database,
             dispatcher=dispatcher,
+            authenticate=authenticate,
             authorize=authorize,
             runner=runner,
             get_job_status=get_job_status,
@@ -78,7 +82,6 @@ class App:
         """Close the application."""
         logger.info(f"Closing {self.name}...")
         self.database.close()
-
 
     async def daemon(self) -> None:
         """Run background tasks."""

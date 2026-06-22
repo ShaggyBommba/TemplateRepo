@@ -163,48 +163,74 @@ HTMX browser login flow:
 - `GET /login` redirects the browser to Keycloak's authorization endpoint with
   a signed state cookie.
 - `GET /callback` renders the OAuth callback state page from
-  `src/presentation/htmx/features/auth/callback.html`.
+  `src/presentation/htmx/templates/auth/callback.html`.
 - The callback page uses htmx on load to call
   `GET /auth/callback/verify`, which validates the state cookie, exchanges the
   authorization code at Keycloak's token endpoint, reads the userinfo endpoint,
-  and stores a small signed local session cookie.
+  verifies the access token through the application boundary, and stores a
+  small signed local session cookie with subject, username, and client roles.
 - `GET /logout` clears the local session and redirects to Keycloak's logout
   endpoint.
 - Browser session cookies are presentation concerns in
   `src/presentation/htmx/security.py`; they do not replace API bearer-token
   authorization for protected API routes.
 
-HTMX presentation modules are feature-based so browser behavior stays local to
-the feature that owns it:
+HTMX presentation modules are layer-based: route handlers live under `routes/`
+and Jinja templates live under `templates/`, so each technical concern has one
+home:
 
 ```text
 src/presentation/htmx/
   app.py
   dependencies.py
   security.py
-  features/
-    shared/
-      layout.html
-      navbar.html
+  routes/
+    admin.py
+    auth.py
+    home.py
+    system.py
+  static/
+    css/
+      input.css          # Tailwind v4 + daisyUI source
+      app.css            # built stylesheet (served at /static/css/app.css)
+    vendor/
+      htmx.min.js        # pinned htmx 2.0.4
+      alpinejs.min.js    # pinned Alpine.js 3.14.8
+  templates/
+    layout.html
+    navbar.html
+    admin/
+      index.html
     auth/
-      routes.py
       callback.html
     home/
-      routes.py
       index.html
       partials/
     system/
-      routes.py
       index.html
 ```
 
-`src/presentation/htmx/app.py` owns the `Jinja2Templates` instance and roots it
-at `src/presentation/htmx/features`, so feature routes render with
-feature-prefixed paths such as `home/index.html` and `auth/callback.html`.
+`src/presentation/htmx/app.py` owns the templating and static surfaces. It roots
+a `Jinja2Blocks` instance (from `jinja2-fragments`) at
+`src/presentation/htmx/templates`, so routes render templates by path such as
+`home/index.html` and `auth/callback.html`, with the shared shell at the template
+root as `layout.html` and `navbar.html`. It also mounts
+`src/presentation/htmx/static` at `/static` for vendored scripts and the built
+stylesheet.
+
+`Jinja2Blocks` lets a route return either a full page or a single template block.
+`dependencies.render()` returns the page's `content` block for non-boosted HTMX
+requests (`HX-Request` without `HX-Boosted`) and the whole document otherwise, so
+boosted navigation still swaps the shell and `<title>`. Overview and System
+navigation use `hx-boost`; targeted controls such as the System "Refresh" button
+request the lighter content fragment.
 
 The HTMX visual language, tokens, layout primitives, and component conventions
-are documented in `docs/design.md`. Shared CSS and shell markup remain
-implemented in `src/presentation/htmx/features/shared/`.
+are documented in `docs/design.md`. Styling is built with Tailwind CSS v4 and
+daisyUI (no Node) from `static/css/input.css` into `static/css/app.css` via
+`task css`; the existing token-based component CSS is preserved inside
+`input.css` and migrates to utilities incrementally. Shell markup stays in
+`src/presentation/htmx/templates/` as `layout.html` and `navbar.html`.
 
 Keycloak realm configuration lives in
 `infrastructure/config/keycloak/realm-export.json`. The template client uses
@@ -315,6 +341,21 @@ Because Swagger/OpenAPI documents HTTP operations only, websocket routes are not
 listed in `/docs` by default; they should be considered separately from
 auto-generated OpenAPI docs.
 ```
+
+## Admin Pane WebSocket Contract
+
+The HTMX admin pane is exposed at `GET /admin`. It renders the shared SaaS shell
+and includes an Alpine.js client that connects to the existing job websocket
+contract at `/jobs/ws/{job_id}`.
+
+The route requires a signed browser session with the `users:create` role.
+Anonymous users are redirected to login, and signed-in users without
+`users:create` receive `403`.
+
+The admin pane is a browser operations surface. It should not duplicate the job
+websocket implementation in templates. Browser session cookies remain
+presentation state; API authorization for protected JSON routes continues to use
+bearer-token roles.
 
 ## Service / Use Case Blueprint
 

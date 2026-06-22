@@ -30,7 +30,7 @@ class KeycloakVerifier:
         try:
             # 1. Automatically extracts 'kid', grabs it from cache, or fetches from Keycloak
             signing_key = self.client.get_signing_key_from_jwt(token)
-            
+
             # 2. Decodes and validates claims
             payload = jwt.decode(
                 token,
@@ -46,16 +46,15 @@ class KeycloakVerifier:
         subject = payload.get("sub")
         if not isinstance(subject, str) or not subject:
             raise AuthError("access token is missing subject")
-        
+
         return Principal(
             subject=subject,
             username=payload.get("preferred_username"),
             roles=frozenset(
                 (
-                    payload
-                        .get("resource_access", {})
-                        .get(self.settings.client_id, {})
-                        .get("roles", [])
+                    payload.get("resource_access", {})
+                    .get(self.settings.client_id, {})
+                    .get("roles", [])
                 )
-            )
+            ),
         )

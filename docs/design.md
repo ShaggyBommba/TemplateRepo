@@ -1,12 +1,19 @@
 # Design System
 
 This document defines the HTMX SaaS design system for the template browser
-surface. The implementation source of truth is
-`src/presentation/htmx/features/shared/layout.html`; shared shell markup lives
-in `src/presentation/htmx/features/shared/navbar.html`.
+surface. Styling is built with Tailwind CSS v4 and daisyUI (no Node required)
+from `src/presentation/htmx/static/css/input.css` into
+`src/presentation/htmx/static/css/app.css`, which `layout.html` links. Shell
+markup lives in `src/presentation/htmx/templates/layout.html` and
+`src/presentation/htmx/templates/navbar.html`.
+
+Build the stylesheet with `task css` (or `task css-watch` while iterating).
+daisyUI is the default component layer; `input.css` should mostly define the
+template shell, page grids, responsive table behavior, and small helpers that
+compose daisyUI components.
 
 Use this guide when adding or changing browser templates under
-`src/presentation/htmx/features/`.
+`src/presentation/htmx/templates/`.
 
 ## Principles
 
@@ -16,22 +23,31 @@ Use this guide when adding or changing browser templates under
 - Keep behavior local to the feature that owns it.
 - Use htmx for server interaction and Alpine.js for local state.
 - Keep cards shallow. Do not put page sections inside decorative outer cards.
-- Keep border radius at `.5rem` or less except fully rounded pills and dots.
+- Keep border radius at `.5rem` or less except fully rounded badges and dots.
 - Do not introduce decorative orbs, bokeh, or one-off background art.
 
 ## Source Files
 
 ```text
-src/presentation/htmx/features/
-  shared/
-    layout.html      # tokens, shared CSS, htmx and Alpine.js loading
+src/presentation/htmx/
+  static/
+    css/
+      input.css      # Tailwind v4 + daisyUI theme + layout helpers
+      app.css        # built stylesheet, served at /static/css/app.css
+    vendor/
+      htmx.min.js    # pinned htmx 2.0.4
+      alpinejs.min.js # pinned Alpine.js 3.14.8
+  templates/
+    layout.html      # document shell; links built CSS and vendored JS
     navbar.html      # sidebar shell and auth entrypoints
-  home/
-    index.html       # overview dashboard pattern
-  system/
-    index.html       # system console pattern
-  auth/
-    callback.html    # OAuth callback state pattern
+    admin/
+      index.html     # admin websocket panel pattern
+    home/
+      index.html     # overview dashboard pattern
+    system/
+      index.html     # system console pattern
+    auth/
+      callback.html  # OAuth callback state pattern
 ```
 
 ## Tokens
@@ -43,24 +59,20 @@ Tokens are CSS custom properties on `:root`.
 | `--bg` | `#08090d` | App background |
 | `--surface` | `#0e1016` | Structural dark surface |
 | `--panel` | `#141720` | Cards, panels, metric tiles |
-| `--panel-soft` | `#10131a` | Inputs, nested rows, buttons |
+| `--panel-soft` | `#10131a` | Code blocks and soft nested surfaces |
 | `--line` | `#272b36` | Default borders and dividers |
 | `--line-strong` | `#343a48` | Active and hover borders |
 | `--text` | `#f4f6fb` | Primary text |
 | `--muted` | `#9aa3b2` | Body copy and secondary labels |
 | `--subtle` | `#687083` | Eyebrows, table headers, metadata |
 | `--accent` | `#39d0b3` | Interactive accent and positive emphasis |
-| `--accent-soft` | `#103c35` | Primary button fill |
-| `--ok` | `#6ee7a6` | Healthy or ready state |
-| `--warn` | `#f5c76b` | Degraded or unavailable state |
-| `--danger` | `#ff8b8b` | Error state |
 | `--focus` | `#8ab4ff` | Keyboard focus outline |
 
 Rules:
 
 - Add a token before adding a repeated raw color.
-- Use raw colors only for one-off values that are tied to an existing token,
-  such as primary button text on `--accent-soft`.
+- Use daisyUI semantic utilities for state colors, such as `text-success`,
+  `text-warning`, `alert-error`, `status-success`, and `status-warning`.
 - Keep the dominant palette neutral dark with teal as the only primary accent.
 
 ## Typography
@@ -78,8 +90,8 @@ Scale:
 | `h1` | `2rem`, mobile `1.75rem` | Page title only |
 | `h2` | `1rem` | Panel title |
 | `h3` | `.95rem` | Panel row title |
-| `.label` | `.72rem` | Uppercase metadata |
-| `.pill` | `.85rem` | Compact status and count labels |
+| `.meta-label` | `.72rem` | Uppercase metadata |
+| `.badge` | daisyUI scale | Compact status and count labels |
 | `.metric-copy` | `.9rem` | Tile support text |
 
 Rules:
@@ -109,6 +121,7 @@ Core layout classes:
 | `.summary-grid` | Four metric tiles on desktop |
 | `.dashboard-grid` | Primary content plus supporting panel |
 | `.endpoint-grid` | Small grid of endpoint/action buttons |
+| `.flow-stack` | Vertical spacing for labels and content |
 | `.section-space` | Standard vertical spacing between sections |
 
 Responsive breakpoints:
@@ -122,7 +135,7 @@ Responsive breakpoints:
 
 ### Sidebar
 
-Use `shared/navbar.html` for global navigation. It owns:
+Use `navbar.html` for global navigation. It owns:
 
 - brand mark and product name
 - workspace navigation links
@@ -133,9 +146,12 @@ Do not duplicate global navigation inside feature templates.
 
 ### Buttons
 
-Use `.button` for links styled as actions and native `button` for local actions.
-Use `.button.primary` or `button.primary` for the main action in a local
-context.
+Use daisyUI buttons for links and native buttons:
+
+```html
+<a class="btn btn-sm btn-outline" href="/status">Status</a>
+<button class="btn btn-sm btn-primary" type="button">Refresh</button>
+```
 
 Buttons must:
 
@@ -144,25 +160,25 @@ Buttons must:
 - preserve focus-visible styles
 - use disabled state for active async work
 
-### Pills And Status
+### Badges And Status
 
-Use `.pill` for compact metadata such as status, counts, and version. Use
-`.status-dot.ok` and `.status-dot.warn` for health state.
+Use daisyUI `.badge` for compact metadata such as status, counts, and version.
+Use daisyUI `.status` for small health dots.
 
 Status color conventions:
 
 | Class | Meaning |
 | --- | --- |
-| `.ok` | Ready, healthy, successful |
-| `.warn` | Degraded, unavailable, pending |
-| `.danger` | Error or failed |
+| `.text-success`, `.status-success` | Ready, healthy, successful |
+| `.text-warning`, `.status-warning` | Degraded, unavailable, pending |
+| `.alert-error`, `.text-error` | Error or failed |
 
 ### Metrics
 
 Use `.metric` inside `.summary-grid` for top-level dashboard facts. Each metric
 should contain:
 
-1. `.label`
+1. `.meta-label`
 2. `.value`
 3. `.metric-copy`
 
@@ -171,28 +187,30 @@ enabled platform capabilities.
 
 ### Panels
 
-Use `.panel` for grouped operational content. Use `.panel-head` for title and
-metadata. Use `.panel-list` and `.panel-item` for repeated rows.
+Use daisyUI `.card card-border bg-base-200` with `.panel` for grouped
+operational content. Use `.panel-head` for title and metadata. Use
+`.panel-list` and `.panel-item` for repeated rows.
 
 Panel rows should be short and scannable:
 
 ```html
-<li class="panel-item row">
-  <div class="stack">
+<li class="border border-base-300 bg-base-100 rounded-box panel-item row">
+  <div class="flow-stack">
     <h3>Presentation</h3>
     <p>FastAPI HTMX routes render feature-owned templates.</p>
   </div>
-  <span class="pill">ready</span>
+  <span class="badge badge-outline">ready</span>
 </li>
 ```
 
 ### Tables
 
-Use `.table-panel` and `.table` for dense data. Add `data-label` to every body
-cell so mobile rows can become stacked key-value cards.
+Use daisyUI `.table` for dense data inside a `.card card-border table-panel`.
+Add `data-label` to every body cell so mobile rows can become stacked key-value
+cards.
 
 ```html
-<td data-label="Status"><span class="ok">Ready</span></td>
+<td data-label="Status"><span class="text-success">Ready</span></td>
 ```
 
 Avoid snapshot-like tables that expose implementation details only. Table rows
@@ -220,6 +238,7 @@ Current interaction conventions:
 
 - `hx-trigger="load"` for OAuth callback verification.
 - `fetch("/status")` inside Alpine.js for local dashboard refresh.
+- `new WebSocket(...)` inside Alpine.js for the admin job-status stream.
 - `aria-live="polite"` on status regions that change after refresh.
 - `:aria-busy="loading.toString()"` for async sections.
 
@@ -242,11 +261,12 @@ Minimum requirements:
 
 For a new feature page:
 
-1. Extend `shared/layout.html`.
-2. Keep global navigation in `shared/navbar.html`.
+1. Extend `layout.html`.
+2. Keep global navigation in `navbar.html`.
 3. Start with `.topbar` and `.page-head`.
 4. Use `.summary-grid` for page-level facts.
-5. Use `.dashboard-grid`, `.panel`, and `.panel-item` for operational content.
+5. Use `.dashboard-grid`, daisyUI `.card`, `.panel`, and `.panel-item` for
+   operational content.
 6. Use `.table-panel` only when comparison across rows matters.
 7. Add focused presentation tests for rendered shell text and behavior wiring.
 

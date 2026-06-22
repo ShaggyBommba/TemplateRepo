@@ -48,6 +48,16 @@ foreign ids, structured tool or model output over custom JSON parsing, and
 repository/query APIs over string manipulation. Hand-written parsing or plumbing
 is a fallback, not the default.
 
+Check for common libraries before implementing non-trivial behavior. Before
+writing custom parsing, protocol handling, scheduling, validation,
+serialization, retries, authentication, cryptography, date/time handling,
+caching, or similar infrastructure code, investigate whether the standard
+library, current framework, or a popular well-maintained package already solves
+the problem or can simplify the implementation. Prefer the common library when
+it fits the architecture, license, runtime constraints, and maintenance needs.
+Write bespoke code only when no suitable library exists, the dependency would be
+heavier than the problem, or local requirements are genuinely different.
+
 Factories compose; adapters execute; use cases decide. Factories should assemble
 configured dependencies. Adapters should translate between infrastructure and
 application ports. Application services should own workflow decisions. Do not
@@ -143,6 +153,15 @@ def expire_items(...): ...
 ```
 
 Avoid long service names unless the short name would hide meaning.
+
+Do not leave class-specific helper functions stranded at module scope. If a
+helper exists only to support methods on one class and does not need instance
+state, make it a `@staticmethod` on that class. If it needs instance state, make
+it a normal method.
+
+Move general-purpose helpers out of class modules. Shared helpers that solve a
+reusable problem should live in the appropriate util or utils module for the
+owning layer or feature, without crossing architecture boundaries.
 
 ## Roles And Permissions
 

@@ -26,6 +26,16 @@ tasks:
     cmds:
       - uv run python -m ruff format src tests
 
+  css:
+    desc: Build the HTMX stylesheet (Tailwind + daisyUI, no Node)
+    cmds:
+      - uv run tailwindcss-extra -i src/presentation/htmx/static/css/input.css -o src/presentation/htmx/static/css/app.css --minify
+
+  css-watch:
+    desc: Rebuild the HTMX stylesheet on change
+    cmds:
+      - uv run tailwindcss-extra -i src/presentation/htmx/static/css/input.css -o src/presentation/htmx/static/css/app.css --watch
+
   check:
     desc: Run backend checks
     cmds:
@@ -43,6 +53,7 @@ tasks:
     desc: Run the application in development mode
     cmds:
       - task: infra
+      - task: css
       - uv run dev
 
   clean:

@@ -1,5 +1,27 @@
 services:
 
+  # Traefik service acting as a reverse proxy and load balancer for routing requests to the appropriate services.
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --log.level=INFO
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=proxy
+      - --entrypoints.web.address=:80
+    ports:
+      - "${APP_TRAEFIK__HTTP_PORT:-80}:80"
+      - "${APP_TRAEFIK__HTTPS_PORT:-443}:443"
+      - "${APP_TRAEFIK__DASHBOARD_PORT:-8089}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    profiles:
+      - infrastructure
+    restart: unless-stopped
+
   # Database service will use Postgres for storing application data.
   # But also handeling the jobs using the outbox pattern.
   db:
@@ -21,6 +43,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    networks:
+      - internal
 
   # Keycloak service for authentication and authorization.
   keycloak:
@@ -52,6 +76,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - internal
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.keycloak.rule=Host(`${APP_KEYCLOAK__DOMAIN:-keycloak.localhost}`)
+      - traefik.http.routers.keycloak.entrypoints=web
+      - traefik.http.routers.keycloak.service=keycloak
+      - traefik.http.services.keycloak.loadbalancer.server.port=8080
 
   # Log viewer for monitoring application logs in real-time.
   dozzle:
@@ -63,6 +97,19 @@ services:
     profiles:
       - infrastructure
     restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.dozzle.rule=Host(`${APP_DOZZLE__DOMAIN:-dozzle.localhost}`)
+      - traefik.http.routers.dozzle.entrypoints=web
+      - traefik.http.routers.dozzle.service=dozzle
+      - traefik.http.services.dozzle.loadbalancer.server.port=8080
 
 volumes:
   postgres_data:
+
+networks:
+  internal:
+  proxy:

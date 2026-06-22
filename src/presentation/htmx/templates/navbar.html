@@ -9,21 +9,31 @@
 
   <div class="nav-section">
     <span class="nav-label">Workspace</span>
-    <ul class="nav-list">
+    <ul class="menu menu-sm nav-list">
       <li>
-        <a class="nav-link {{ 'active' if request.url.path == '/' else '' }}" href="/">
+        <a class="{{ 'active' if request.url.path == '/' else '' }}" href="/"
+           hx-boost="true">
           <span class="nav-icon split" aria-hidden="true"></span>
           Overview
         </a>
       </li>
       <li>
-        <a class="nav-link {{ 'active' if request.url.path == '/system' else '' }}" href="/system">
+        <a class="{{ 'active' if request.url.path == '/system' else '' }}" href="/system"
+           hx-boost="true">
           <span class="nav-icon" aria-hidden="true"></span>
           System
         </a>
       </li>
+      {% if user and "users:create" in (user.roles or []) %}
+        <li>
+          <a class="{{ 'active' if request.url.path == '/admin' else '' }}" href="/admin">
+            <span class="nav-icon split" aria-hidden="true"></span>
+            Admin
+          </a>
+        </li>
+      {% endif %}
       <li>
-        <a class="nav-link" href="/status">
+        <a href="/status">
           <span class="nav-icon dot" aria-hidden="true"></span>
           Status API
         </a>
@@ -31,22 +41,22 @@
     </ul>
   </div>
 
-  <div class="sidebar-footer">
+  <div class="card card-border bg-base-100 sidebar-footer">
     {% if user %}
-      <div class="stack">
+      <div class="flow-stack">
         <span class="nav-label">Signed in</span>
         <span class="user">{{ user.username }}</span>
       </div>
-      <a class="button" href="/logout">
+      <a class="btn btn-sm btn-outline" href="/logout">
         <span class="button-icon" aria-hidden="true"></span>
         Logout
       </a>
     {% else %}
-      <div class="stack">
+      <div class="flow-stack">
         <span class="nav-label">Access</span>
         <span class="user">External identity provider</span>
       </div>
-      <a class="button primary" href="/login">
+      <a class="btn btn-sm btn-primary" href="/login">
         <span class="button-icon dot" aria-hidden="true"></span>
         Login
       </a>

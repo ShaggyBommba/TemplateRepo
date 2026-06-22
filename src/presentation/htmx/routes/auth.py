@@ -8,10 +8,16 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 
 from application.app import App, get_app
+from application.error import AuthFailed
 from infrastructure.config import KeycloakSettings, SessionSettings, get_settings
 from presentation.htmx import security
 from presentation.htmx.dependencies import surface_state, template_engine
@@ -64,6 +70,7 @@ def verify_callback(
     request: Request,
     code: str = "",
     state: str = "",
+    app: App = Depends(get_app),
 ) -> Response:
     settings = get_settings()
 
@@ -76,9 +83,12 @@ def verify_callback(
     redirect_uri = str(request.url_for("callback"))
     try:
         token = exchange(settings.keycloak, code, redirect_uri)
+        principal = app.authenticate(token["access_token"])
         user = userinfo(settings.keycloak, token["access_token"])
     except HTTPException as exc:
         return error(str(exc.detail), settings.session)
+    except AuthFailed:
+        return error("Login failed.", settings.session)
     except httpx.HTTPError:
         return error("Login failed.", settings.session)
 
@@ -92,13 +102,15 @@ def verify_callback(
         response,
         settings.session,
         {
-            "subject": str(user.get("sub", "")),
+            "subject": principal.subject,
             "username": str(
-                user.get("preferred_username")
+                principal.username
+                or user.get("preferred_username")
                 or user.get("email")
                 or user.get("sub")
                 or "user"
             ),
+            "roles": sorted(principal.roles),
         },
     )
     return response

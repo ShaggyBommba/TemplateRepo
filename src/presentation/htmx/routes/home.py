@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from jinja2_fragments.fastapi import Jinja2Blocks
 
 from application.app import App, get_app
 from infrastructure.config import get_settings
 from presentation.htmx import security
-from presentation.htmx.dependencies import surface_state, template_engine
+from presentation.htmx.dependencies import render, surface_state, template_engine
 
 routes = APIRouter(tags=["home"])
 
@@ -18,11 +18,12 @@ routes = APIRouter(tags=["home"])
 def index(
     request: Request,
     app: App = Depends(get_app),
-    templates: Jinja2Templates = Depends(template_engine),
+    templates: Jinja2Blocks = Depends(template_engine),
 ) -> HTMLResponse:
     settings = get_settings()
-    return templates.TemplateResponse(
+    return render(
         request,
+        templates,
         "home/index.html",
         {
             "state": surface_state(app).model_dump(),

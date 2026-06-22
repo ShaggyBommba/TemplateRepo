@@ -4,7 +4,21 @@ import pytest
 
 from application.dto import Principal
 from application.error import AuthFailed, Forbidden
-from application.usecases.auth import Authorize
+from application.usecases.auth import Authenticate, Authorize
+
+
+def test_authenticate_returns_trusted_principal() -> None:
+    principal = Principal("user-123", "admin", frozenset({"users:read"}))
+    authenticate = Authenticate(FakeVerifier(principal))
+
+    assert authenticate("token") == principal
+
+
+def test_authenticate_rejects_untrusted_token() -> None:
+    authenticate = Authenticate(FakeVerifier(None))
+
+    with pytest.raises(AuthFailed):
+        authenticate("token")
 
 
 def test_authorize_returns_principal_with_required_role() -> None:

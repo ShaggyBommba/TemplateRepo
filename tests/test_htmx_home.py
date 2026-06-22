@@ -5,8 +5,9 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from application.app import get_app
+from application.dto import Principal
 from presentation.htmx.app import api
-from presentation.htmx.features.auth import routes as auth_routes
+from presentation.htmx.routes import auth as auth_routes
 from utils import signing
 
 
@@ -15,6 +16,7 @@ def test_htmx_surface_exposes_expected_routes() -> None:
 
     assert set(paths) == {
         "/",
+        "/admin",
         "/auth/callback/verify",
         "/callback",
         "/health",
@@ -38,23 +40,48 @@ def test_homepage_renders_basic_template_shell() -> None:
     assert "Service pipeline" in response.text
     assert "Recent activity" in response.text
     assert "SaaS template" in response.text
-    assert "color-scheme: dark" in response.text
-    assert "htmx.org@2.0.4" in response.text
-    assert "alpinejs@3.14.8" in response.text
+    assert "/static/css/app.css" in response.text
+    assert "/static/vendor/htmx.min.js" in response.text
+    assert "/static/vendor/alpinejs.min.js" in response.text
     assert "@click" in response.text
     assert 'fetch("/status"' in response.text
     assert "0.9.0" in response.text
     assert "Ready" in response.text
     assert 'href="/login"' in response.text
+    assert 'href="/admin"' not in response.text
 
 
-def test_homepage_renders_logged_in_user() -> None:
+def test_homepage_renders_logged_in_non_admin_user_without_admin_nav() -> None:
     client = client_for(FakeApp())
     client.cookies.set(
         "template_session",
-        signing.sign(
-            {"subject": "user-123", "username": "admin"},
-            api_settings().session.secret_key.get_secret_value(),
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "viewer",
+                "roles": ["users:read"],
+            }
+        ),
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "viewer" in response.text
+    assert 'href="/logout"' in response.text
+    assert 'href="/admin"' not in response.text
+
+
+def test_homepage_renders_admin_nav_for_user_with_create_role() -> None:
+    client = client_for(FakeApp())
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "admin",
+                "roles": ["users:create", "users:read"],
+            }
         ),
     )
 
@@ -63,6 +90,7 @@ def test_homepage_renders_logged_in_user() -> None:
     assert response.status_code == 200
     assert "admin" in response.text
     assert 'href="/logout"' in response.text
+    assert 'href="/admin"' in response.text
 
 
 def test_status_returns_current_app_state_json() -> None:
@@ -79,6 +107,30 @@ def test_status_returns_current_app_state_json() -> None:
     }
 
 
+def test_home_hx_request_returns_content_fragment_without_document() -> None:
+    client = client_for(FakeApp())
+
+    response = client.get("/", headers={"HX-Request": "true"})
+
+    assert response.status_code == 200
+    assert "<!doctype html>" not in response.text.lower()
+    assert "<html" not in response.text.lower()
+    assert "Operations overview" in response.text
+    # the content block excludes the shell and navbar
+    assert "SaaS template" not in response.text
+
+
+def test_system_hx_request_returns_content_fragment_without_document() -> None:
+    client = client_for(FakeApp(healthy=False))
+
+    response = client.get("/system", headers={"HX-Request": "true"})
+
+    assert response.status_code == 200
+    assert "<!doctype html>" not in response.text.lower()
+    assert "<h1>System</h1>" in response.text
+    assert "SaaS template" not in response.text
+
+
 def test_system_page_renders_feature_template() -> None:
     client = client_for(FakeApp(healthy=False))
 
@@ -90,6 +142,59 @@ def test_system_page_renders_feature_template() -> None:
     assert "Auth surface" in response.text
     assert "Unavailable" in response.text
     assert 'href="/status"' in response.text
+
+
+def test_admin_page_wires_job_websocket() -> None:
+    client = client_for(FakeApp())
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "admin",
+                "roles": ["users:create", "users:read"],
+            }
+        ),
+    )
+
+    response = client.get("/admin?job_id=job-1")
+
+    assert response.status_code == 200
+    assert "<h1>Admin pane</h1>" in response.text
+    assert "Live job-status stream" in response.text
+    assert "ws://localhost:8060/jobs/ws/{job_id}" in response.text
+    assert "new WebSocket(url)" in response.text
+    assert "job-1" in response.text
+    assert "<h2>Users</h2>" not in response.text
+
+
+def test_admin_page_redirects_anonymous_user_to_login() -> None:
+    client = client_for(FakeApp())
+
+    response = client.get("/admin", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://testserver/login"
+
+
+def test_admin_page_rejects_user_without_create_role() -> None:
+    client = client_for(FakeApp())
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "viewer",
+                "roles": ["users:read"],
+            }
+        ),
+    )
+
+    response = client.get("/admin")
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "auth.forbidden"
+    assert response.json()["detail"]["message"] == "Missing required role: users:create"
 
 
 def test_login_redirects_to_keycloak_and_sets_state_cookie() -> None:
@@ -153,6 +258,12 @@ def test_callback_verify_exchanges_code_and_stores_session(monkeypatch) -> None:
     assert 'data-auth-state="success"' in verify.text
     assert 'data-redirect-to="/"' in verify.text
     assert "template_session" in verify.cookies
+    session = signing.read(
+        verify.cookies["template_session"],
+        api_settings().session.secret_key.get_secret_value(),
+    )
+    assert session is not None
+    assert session["roles"] == ["users:create", "users:read"]
     assert "admin" in home.text
 
 
@@ -176,6 +287,17 @@ def test_logout_clears_session_and_redirects_to_keycloak() -> None:
     assert "Max-Age=0" in response.headers["set-cookie"]
 
 
+def test_static_assets_are_served() -> None:
+    client = client_for(FakeApp())
+
+    for path in (
+        "/static/vendor/htmx.min.js",
+        "/static/vendor/alpinejs.min.js",
+        "/static/css/app.css",
+    ):
+        assert client.get(path).status_code == 200, path
+
+
 def client_for(app: FakeApp) -> TestClient:
     htmx_app = api()
     htmx_app.dependency_overrides[get_app] = lambda: app
@@ -186,6 +308,13 @@ def api_settings():
     from infrastructure.config import Settings
 
     return Settings()
+
+
+def signed_session(data: dict[str, object]) -> str:
+    return signing.sign(
+        data,
+        api_settings().session.secret_key.get_secret_value(),
+    )
 
 
 def fake_token(*args, **kwargs) -> FakeResponse:
@@ -212,3 +341,10 @@ class FakeApp:
         self.healthy = healthy
         self.name = "template-app"
         self.version = "0.9.0"
+
+    def authenticate(self, token: str) -> Principal:
+        return Principal(
+            subject="user-123",
+            username="admin",
+            roles=frozenset({"users:create", "users:read"}),
+        )

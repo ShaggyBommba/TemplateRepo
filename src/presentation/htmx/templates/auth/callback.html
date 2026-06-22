@@ -1,10 +1,10 @@
-{% extends "shared/layout.html" %}
+{% extends "layout.html" %}
 
 {% block title %}Signing in - {{ state.name }}{% endblock %}
 
 {% block content %}
 <section
-  class="callback-panel panel"
+  class="callback-panel card card-border bg-base-200 panel"
   x-data="authCallback()"
   x-cloak
   @htmx:after-swap.window="handleSwap($event)"
@@ -25,7 +25,7 @@
   <div id="callback-result" hidden></div>
 
   <div x-show="state === 'authenticating'" x-transition.opacity.duration.150ms>
-    <span class="spinner" aria-hidden="true"></span>
+    <span class="loading loading-spinner loading-md text-primary" aria-hidden="true"></span>
     <h1>Signing in</h1>
     <p>Authenticating with your identity provider.</p>
   </div>
@@ -37,8 +37,8 @@
 
   <div x-show="state === 'error'" x-transition.opacity.duration.150ms>
     <h1>Sign-in failed</h1>
-    <p class="danger" role="alert" x-text="message"></p>
-    <p><a class="button" href="/login">Try again</a></p>
+    <p class="alert alert-error" role="alert" x-text="message"></p>
+    <p><a class="btn btn-sm btn-outline" href="/login">Try again</a></p>
   </div>
 </section>
 
