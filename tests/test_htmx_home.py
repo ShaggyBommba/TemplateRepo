@@ -23,7 +23,6 @@ def test_htmx_surface_exposes_expected_routes() -> None:
         "/login",
         "/logout",
         "/status",
-        "/system",
         "/version",
     }
 
@@ -35,19 +34,18 @@ def test_homepage_renders_basic_template_shell() -> None:
 
     assert response.status_code == 200
     assert "template-app" in response.text
-    assert "Layered service template" in response.text
-    assert "Operations overview" in response.text
-    assert "Service pipeline" in response.text
-    assert "Recent activity" in response.text
+    assert "<h1>Home</h1>" in response.text
+    assert "Workspace" in response.text
     assert "SaaS template" in response.text
     assert "/static/css/app.css" in response.text
     assert "/static/vendor/htmx.min.js" in response.text
     assert "/static/vendor/alpinejs.min.js" in response.text
-    assert "@click" in response.text
-    assert 'fetch("/status"' in response.text
     assert "0.9.0" in response.text
     assert "Ready" in response.text
     assert 'href="/login"' in response.text
+    assert 'href="/system"' not in response.text
+    assert "Service pipeline" not in response.text
+    assert "Recent activity" not in response.text
     assert 'href="/admin"' not in response.text
 
 
@@ -115,33 +113,17 @@ def test_home_hx_request_returns_content_fragment_without_document() -> None:
     assert response.status_code == 200
     assert "<!doctype html>" not in response.text.lower()
     assert "<html" not in response.text.lower()
-    assert "Operations overview" in response.text
+    assert "<h1>Home</h1>" in response.text
     # the content block excludes the shell and navbar
     assert "SaaS template" not in response.text
 
 
-def test_system_hx_request_returns_content_fragment_without_document() -> None:
-    client = client_for(FakeApp(healthy=False))
-
-    response = client.get("/system", headers={"HX-Request": "true"})
-
-    assert response.status_code == 200
-    assert "<!doctype html>" not in response.text.lower()
-    assert "<h1>System</h1>" in response.text
-    assert "SaaS template" not in response.text
-
-
-def test_system_page_renders_feature_template() -> None:
+def test_system_pane_is_not_registered() -> None:
     client = client_for(FakeApp(healthy=False))
 
     response = client.get("/system")
 
-    assert response.status_code == 200
-    assert "<h1>System</h1>" in response.text
-    assert "Endpoint map" in response.text
-    assert "Auth surface" in response.text
-    assert "Unavailable" in response.text
-    assert 'href="/status"' in response.text
+    assert response.status_code == 404
 
 
 def test_admin_page_wires_job_websocket() -> None:
@@ -160,11 +142,13 @@ def test_admin_page_wires_job_websocket() -> None:
     response = client.get("/admin?job_id=job-1")
 
     assert response.status_code == 200
-    assert "<h1>Admin pane</h1>" in response.text
-    assert "Live job-status stream" in response.text
+    assert "<h1>Admin</h1>" in response.text
+    assert "<h2>Job stream</h2>" in response.text
     assert "ws://localhost:8060/jobs/ws/{job_id}" in response.text
     assert "new WebSocket(url)" in response.text
     assert "job-1" in response.text
+    assert "Stream target" not in response.text
+    assert "summary-grid" not in response.text
     assert "<h2>Users</h2>" not in response.text
 
 

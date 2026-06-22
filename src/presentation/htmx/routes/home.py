@@ -35,3 +35,13 @@ def index(
 @routes.get("/status")
 def status(app: App = Depends(get_app)) -> dict[str, str | bool]:
     return surface_state(app).model_dump()
+
+
+@routes.get("/health")
+def health(app: App = Depends(get_app)) -> dict[str, bool]:
+    return {"healthy": app.healthy}
+
+
+@routes.get("/version")
+def version(app: App = Depends(get_app)) -> dict[str, str]:
+    return {"version": app.version}

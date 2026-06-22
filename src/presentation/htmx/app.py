@@ -16,7 +16,6 @@ from infrastructure.config import get_settings
 from presentation.htmx.routes.admin import routes as admin_routes
 from presentation.htmx.routes.auth import routes as auth_routes
 from presentation.htmx.routes.home import routes as home_routes
-from presentation.htmx.routes.system import routes as system_routes
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -48,7 +47,6 @@ def api() -> FastAPI:
     fastapi_app.include_router(admin_routes)
     fastapi_app.include_router(auth_routes)
     fastapi_app.include_router(home_routes)
-    fastapi_app.include_router(system_routes)
 
     return fastapi_app
 

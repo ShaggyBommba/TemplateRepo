@@ -41,11 +41,9 @@ src/presentation/htmx/
     layout.html      # document shell; links built CSS and vendored JS
     navbar.html      # sidebar shell and auth entrypoints
     admin/
-      index.html     # admin websocket panel pattern
+      index.html     # admin job stream card pattern
     home/
-      index.html     # overview dashboard pattern
-    system/
-      index.html     # system console pattern
+      index.html     # empty project home pane
     auth/
       callback.html  # OAuth callback state pattern
 ```

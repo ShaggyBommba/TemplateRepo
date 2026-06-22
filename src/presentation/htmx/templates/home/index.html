@@ -1,18 +1,16 @@
 {% extends "layout.html" %}
 
+{% block title %}Home - {{ state.name }}{% endblock %}
+
 {% block content %}
-<div x-data='statusPanel({{ state | tojson }})'>
+<div>
   <div class="topbar">
     <div class="user-line">
       <span class="badge badge-outline gap-2">
-        <span
-          class="status"
-          :class="state.healthy ? 'status-success' : 'status-warning'"
-          aria-hidden="true"
-        ></span>
-        <span x-text="state.status">{{ state.status }}</span>
+        <span class="status {{ 'status-success' if state.healthy else 'status-warning' }}" aria-hidden="true"></span>
+        {{ state.status }}
       </span>
-      <span class="badge badge-outline">v<span x-text="state.version">{{ state.version }}</span></span>
+      <span class="badge badge-outline">v{{ state.version }}</span>
     </div>
     <div class="actions">
       {% if user %}
@@ -27,185 +25,8 @@
   <section class="page-head">
     <div>
       <p class="eyebrow meta-label">Workspace</p>
-      <h1>Operations overview</h1>
-      <p class="lede">Layered service template with auth, status, and system surfaces wired for an htmx SaaS shell.</p>
-    </div>
-    <div class="actions">
-      <button
-        type="button"
-        class="btn btn-sm btn-primary"
-        @click="refresh()"
-        :disabled="loading"
-        :aria-busy="loading.toString()"
-      >
-        <span class="button-icon dot" aria-hidden="true"></span>
-        <span x-text="loading ? 'Refreshing...' : 'Refresh status'">Refresh status</span>
-      </button>
+      <h1>Home</h1>
     </div>
   </section>
-
-  <section
-    class="summary-grid"
-    aria-live="polite"
-    :aria-busy="loading.toString()"
-    x-transition.opacity.duration.150ms
-  >
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Status</span>
-      <span
-        class="value"
-        :class="state.healthy ? 'text-success' : 'text-warning'"
-        x-text="state.status"
-      >{{ state.status }}</span>
-      <span class="metric-copy">Application facade</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Version</span>
-      <span class="value" x-text="state.version">{{ state.version }}</span>
-      <span class="metric-copy">Release channel</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Identity</span>
-      <span class="value">{{ "Active" if user else "OAuth" }}</span>
-      <span class="metric-copy">{{ user.username if user else "Provider login" }}</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">HTMX</span>
-      <span class="value">Enabled</span>
-      <span class="metric-copy">Alpine state active</span>
-    </article>
-  </section>
-
-  <section class="dashboard-grid section-space">
-    <article class="card card-border bg-base-200 panel">
-      <div class="panel-head">
-        <h2>Service pipeline</h2>
-        <span class="badge badge-outline">Live</span>
-      </div>
-      <ul class="panel-list">
-        <li class="border border-base-300 bg-base-100 rounded-box panel-item row">
-          <div class="flow-stack">
-            <h3>Presentation</h3>
-            <p>FastAPI HTMX routes render feature-owned templates.</p>
-          </div>
-          <span class="badge badge-outline">ready</span>
-        </li>
-        <li class="border border-base-300 bg-base-100 rounded-box panel-item row">
-          <div class="flow-stack">
-            <h3>Application</h3>
-            <p>Facade exposes health, version, and authorization entrypoints.</p>
-          </div>
-          <span class="badge badge-outline">wired</span>
-        </li>
-        <li class="border border-base-300 bg-base-100 rounded-box panel-item row">
-          <div class="flow-stack">
-            <h3>Identity</h3>
-            <p>Login delegates to the external provider and stores a signed session.</p>
-          </div>
-          <span class="badge badge-outline">oauth</span>
-        </li>
-      </ul>
-    </article>
-
-    <article class="card card-border bg-base-200 panel">
-      <div class="panel-head">
-        <h2>Core surfaces</h2>
-        <span class="badge badge-outline">3 APIs</span>
-      </div>
-      <div class="endpoint-grid">
-        <a class="btn btn-sm btn-outline" href="/status">Status</a>
-        <a class="btn btn-sm btn-outline" href="/health">Health</a>
-        <a class="btn btn-sm btn-outline" href="/version">Version</a>
-      </div>
-      <div class="border border-base-300 bg-base-100 rounded-box panel-item flow-stack">
-        <span class="meta-label">Session</span>
-        <p>{{ "Signed in as " ~ user.username if user else "No browser session" }}</p>
-      </div>
-      <div class="border border-base-300 bg-base-100 rounded-box panel-item flow-stack">
-        <span class="meta-label">Callback</span>
-        <p>External login resolves through the htmx callback verifier.</p>
-      </div>
-    </article>
-  </section>
-
-  <section class="card card-border bg-base-200 table-panel">
-    <div class="panel-head">
-      <h2>Recent activity</h2>
-      <span class="badge badge-outline">Template data</span>
-    </div>
-    <table class="table table-sm">
-      <thead>
-        <tr>
-          <th>Area</th>
-          <th>Boundary</th>
-          <th>Status</th>
-          <th>Owner</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td data-label="Area">Dashboard</td>
-          <td data-label="Boundary">presentation.htmx</td>
-          <td data-label="Status"><span class="text-success">Ready</span></td>
-          <td data-label="Owner">Frontend</td>
-        </tr>
-        <tr>
-          <td data-label="Area">Authentication</td>
-          <td data-label="Boundary">routes.auth</td>
-          <td data-label="Status"><span class="text-success">OAuth</span></td>
-          <td data-label="Owner">Identity</td>
-        </tr>
-        <tr>
-          <td data-label="Area">System status</td>
-          <td data-label="Boundary">routes.system</td>
-          <td data-label="Status"><span :class="state.healthy ? 'text-success' : 'text-warning'" x-text="state.status">{{ state.status }}</span></td>
-          <td data-label="Owner">Runtime</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
-  <template x-if="error">
-    <p
-      class="alert alert-error"
-      role="alert"
-      x-text="error"
-      x-transition.opacity.duration.150ms
-    ></p>
-  </template>
 </div>
-
-<script>
-  function statusPanel(initialState) {
-    return {
-      state: initialState,
-      loading: false,
-      error: "",
-      async refresh() {
-        this.loading = true;
-        this.error = "";
-
-        try {
-          const response = await fetch("/status", {
-            headers: { Accept: "application/json" },
-          });
-
-          if (!response.ok) {
-            throw new Error(`Status request failed with ${response.status}`);
-          }
-
-          this.state = {
-            ...this.state,
-            ...(await response.json()),
-          };
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : "unknown error";
-          this.error = `Unable to refresh status: ${detail}`;
-        } finally {
-          this.loading = false;
-        }
-      },
-    };
-  }
-</script>
 {% endblock %}

@@ -2,11 +2,15 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy import Engine, create_engine
+import psycopg
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from infrastructure.config import DatabaseSettings
-import psycopg
+
+NAMESPACE = int.from_bytes(b"tmpl", "big")
+KEY = 1
+
 
 class Base(DeclarativeBase):
     """Infrastructure foundation that our Shared Kernel models inherit from."""
@@ -38,12 +42,22 @@ class SqlDatabase:
     async def connection(self) -> AsyncGenerator[psycopg.AsyncConnection, None]:
         async with await psycopg.AsyncConnection.connect(self.settings.dsn) as conn:
             yield conn
-            
+
     def create_all(self) -> None:
         """Provision extensions and create all known database tables."""
         import infrastructure.persistence.models  # noqa: F401
 
-        Base.metadata.create_all(self.engine())
+        engine = self.engine()
+        if engine.dialect.name == "postgresql":
+            with engine.begin() as conn:
+                conn.execute(
+                    text("SELECT pg_advisory_xact_lock(:ns, :key)"),
+                    {"ns": NAMESPACE, "key": KEY},
+                )
+                Base.metadata.create_all(conn)
+            return
+
+        Base.metadata.create_all(engine)
 
     def drop_all(self) -> None:
         """Drop all known database tables."""

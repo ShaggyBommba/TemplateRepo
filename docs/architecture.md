@@ -188,7 +188,6 @@ src/presentation/htmx/
     admin.py
     auth.py
     home.py
-    system.py
   static/
     css/
       input.css          # Tailwind v4 + daisyUI source
@@ -205,9 +204,6 @@ src/presentation/htmx/
       callback.html
     home/
       index.html
-      partials/
-    system/
-      index.html
 ```
 
 `src/presentation/htmx/app.py` owns the templating and static surfaces. It roots
@@ -220,10 +216,11 @@ stylesheet.
 
 `Jinja2Blocks` lets a route return either a full page or a single template block.
 `dependencies.render()` returns the page's `content` block for non-boosted HTMX
-requests (`HX-Request` without `HX-Boosted`) and the whole document otherwise, so
-boosted navigation still swaps the shell and `<title>`. Overview and System
-navigation use `hx-boost`; targeted controls such as the System "Refresh" button
-request the lighter content fragment.
+requests (`HX-Request` without `HX-Boosted`) and the whole document otherwise,
+so boosted navigation still swaps the shell and `<title>`. The browser shell
+keeps two reusable panes: Home (`/`) and Admin (`/admin`). Home is an empty
+project landing pane with the shared topbar and page heading. Admin keeps the
+job stream card that connects to the existing jobs websocket contract.
 
 The HTMX visual language, tokens, layout primitives, and component conventions
 are documented in `docs/design.md`. Styling is built with Tailwind CSS v4 and

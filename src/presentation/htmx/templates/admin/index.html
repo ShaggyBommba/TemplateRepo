@@ -13,102 +13,49 @@
       {{ state.status }}
     </span>
     <div class="actions">
-      {% if user %}
-        <span class="user">{{ user.username }}</span>
-        <a class="btn btn-sm btn-outline" href="/logout">Logout</a>
-      {% else %}
-        <a class="btn btn-sm btn-primary" href="/login">Login</a>
-      {% endif %}
+      <span class="user">{{ user.username }}</span>
+      <a class="btn btn-sm btn-outline" href="/logout">Logout</a>
     </div>
   </div>
 
   <section class="page-head">
     <div>
       <p class="eyebrow meta-label">Admin</p>
-      <h1>Admin pane</h1>
-      <p class="lede">Live job-status stream for operations checks.</p>
+      <h1>Admin</h1>
     </div>
     <span class="badge badge-outline">users:create</span>
   </section>
 
-  <section class="summary-grid" aria-live="polite">
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">WebSocket</span>
-      <span class="value" x-text="socketState">Idle</span>
-      <span class="metric-copy">Job status stream</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Job ID</span>
-      <span class="value" x-text="jobId || 'None'">{{ job_id or "None" }}</span>
-      <span class="metric-copy">Selected stream</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Endpoint</span>
-      <span class="value">jobs/ws</span>
-      <span class="metric-copy">Existing API socket</span>
-    </article>
-    <article class="card card-border bg-base-200 metric">
-      <span class="meta-label">Session</span>
-      <span class="value">{{ user.username if user else "Guest" }}</span>
-      <span class="metric-copy">Browser context</span>
-    </article>
-  </section>
-
-  <section class="dashboard-grid section-space">
-    <article class="card card-border bg-base-200 panel">
-      <div class="panel-head">
-        <h2>Job stream</h2>
-        <span class="badge badge-outline" x-text="socketState">Idle</span>
+  <section class="card card-border bg-base-200 panel section-space">
+    <div class="panel-head">
+      <h2>Job stream</h2>
+      <span class="badge badge-outline" x-text="socketState">Idle</span>
+    </div>
+    <form class="flow-stack" @submit.prevent="connect()">
+      <label class="meta-label" for="job-id">Job ID</label>
+      <input
+        class="input"
+        id="job-id"
+        name="job_id"
+        type="text"
+        autocomplete="off"
+        placeholder="Paste a job id"
+        x-model="jobId"
+      >
+      <div class="actions">
+        <button type="submit" class="btn btn-sm btn-primary">
+          <span class="button-icon dot" aria-hidden="true"></span>
+          Connect
+        </button>
+        <button class="btn btn-sm btn-outline" type="button" @click="disconnect()" :disabled="!connected">
+          Disconnect
+        </button>
       </div>
-      <form class="flow-stack" @submit.prevent="connect()">
-        <label class="meta-label" for="job-id">Job ID</label>
-        <input
-          class="input"
-          id="job-id"
-          name="job_id"
-          type="text"
-          autocomplete="off"
-          placeholder="Paste a job id"
-          x-model="jobId"
-        >
-        <div class="actions">
-          <button type="submit" class="btn btn-sm btn-primary">
-            <span class="button-icon dot" aria-hidden="true"></span>
-            Connect
-          </button>
-          <button class="btn btn-sm btn-outline" type="button" @click="disconnect()" :disabled="!connected">
-            Disconnect
-          </button>
-        </div>
-      </form>
-      <pre class="code-block" aria-live="polite" x-text="latestMessage || 'No websocket messages yet.'">No websocket messages yet.</pre>
-      <template x-if="error">
-        <p class="alert alert-error" role="alert" x-text="error"></p>
-      </template>
-    </article>
-
-    <article class="card card-border bg-base-200 panel">
-      <div class="panel-head">
-        <h2>Stream target</h2>
-        <span class="badge badge-outline">jobs/ws</span>
-      </div>
-      <ul class="panel-list">
-        <li class="border border-base-300 bg-base-100 rounded-box panel-item row">
-          <div class="flow-stack">
-            <h3>Socket URL</h3>
-            <p>{{ jobs_ws_url }}</p>
-          </div>
-          <span class="badge badge-outline">template</span>
-        </li>
-        <li class="border border-base-300 bg-base-100 rounded-box panel-item row">
-          <div class="flow-stack">
-            <h3>Close behavior</h3>
-            <p>The jobs route closes terminal streams after done or failed updates.</p>
-          </div>
-          <span class="badge badge-outline">1000</span>
-        </li>
-      </ul>
-    </article>
+    </form>
+    <pre class="code-block" aria-live="polite" x-text="latestMessage || 'No websocket messages yet.'">No websocket messages yet.</pre>
+    <template x-if="error">
+      <p class="alert alert-error" role="alert" x-text="error"></p>
+    </template>
   </section>
 </div>
 
