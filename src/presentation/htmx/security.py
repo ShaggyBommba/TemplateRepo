@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
-import json
 from typing import Any
 
 from fastapi import Request
 from fastapi.responses import Response
 
 from infrastructure.config import SessionSettings
+from utils import signing
 
 
 def get(request: Request, settings: SessionSettings) -> dict[str, Any] | None:
@@ -23,7 +20,7 @@ def get(request: Request, settings: SessionSettings) -> dict[str, Any] | None:
         The decoded dictionary payload if the signature is valid, or None if missing or tampered with.
     """
     value = request.cookies.get(settings.cookie_name)
-    return read(value, settings)
+    return signing.read(value, settings.secret_key.get_secret_value())
 
 
 def set_session(
@@ -40,7 +37,7 @@ def set_session(
     """
     response.set_cookie(
         settings.cookie_name,
-        sign(data, settings),
+        signing.sign(data, settings.secret_key.get_secret_value()),
         max_age=settings.max_age_seconds,
         httponly=True,
         secure=settings.secure,
@@ -68,7 +65,7 @@ def set_state(response: Response, settings: SessionSettings, state: str) -> None
     """
     response.set_cookie(
         settings.state_cookie_name,
-        sign({"state": state}, settings),
+        signing.sign({"state": state}, settings.secret_key.get_secret_value()),
         max_age=300,  # Strict 5-minute threshold
         httponly=True,
         secure=settings.secure,
@@ -97,75 +94,8 @@ def valid_state(request: Request, settings: SessionSettings, state: str) -> bool
     Returns:
         True if the state cookie is valid and matches the incoming state argument; False otherwise.
     """
-    stored = read(request.cookies.get(settings.state_cookie_name), settings)
+    stored = signing.read(
+        request.cookies.get(settings.state_cookie_name),
+        settings.secret_key.get_secret_value(),
+    )
     return stored is not None and stored.get("state") == state
-
-
-def read(value: str | None, settings: SessionSettings) -> dict[str, Any] | None:
-    """Parse a signed "payload.signature" string, verify its integrity, and decode the JSON.
-
-    Args:
-        value: The raw string read from a cookie.
-        settings: Session infrastructure configurations providing the hashing secret key.
-
-    Returns:
-        The decoded dictionary if the signature matches, or None if verification fails.
-    """
-    if value is None or "." not in value:
-        return None
-
-    payload, signature = value.rsplit(".", 1)
-    expected = digest(payload, settings)
-    
-    # Use hmac.compare_digest to defend against timing attacks
-    if not hmac.compare_digest(signature, expected):
-        return None
-
-    try:
-        raw = base64.urlsafe_b64decode(pad(payload))
-        data = json.loads(raw)
-    except (ValueError, json.JSONDecodeError):
-        return None
-
-    return data if isinstance(data, dict) else None
-
-
-def sign(data: dict[str, Any], settings: SessionSettings) -> str:
-    """Convert a dictionary to compact JSON, base64-encode it, and append an HMAC signature.
-
-    Args:
-        data: The dictionary data payload to sign.
-        settings: Session infrastructure configurations providing the secret key.
-
-    Returns:
-        A combined string formatted securely as "payload.signature".
-    """
-    raw = json.dumps(data, separators=(",", ":"), sort_keys=True).encode()
-    payload = base64.urlsafe_b64encode(raw).decode().rstrip("=")
-    return f"{payload}.{digest(payload, settings)}"
-
-
-def digest(payload: str, settings: SessionSettings) -> str:
-    """Compute a SHA256 HMAC digest hex string over a text payload using the session secret key.
-
-    Args:
-        payload: The base64 URL text segment requiring a signature.
-        settings: Session configurations holding the secret key value.
-
-    Returns:
-        The cryptographic hex digest signature.
-    """
-    secret = settings.secret_key.get_secret_value().encode()
-    return hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
-
-
-def pad(value: str) -> str:
-    """Append required base64 padding characters ('=') to a truncated string based on alignment.
-
-    Args:
-        value: A string missing base64 padding characters.
-
-    Returns:
-        The appropriately padded string ready for standard decoding.
-    """
-    return value + "=" * (-len(value) % 4)

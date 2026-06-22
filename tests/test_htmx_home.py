@@ -5,9 +5,9 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from application.app import get_app
-from presentation.htmx import security
 from presentation.htmx.app import api
 from presentation.htmx.routes import auth as auth_routes
+from utils import signing
 
 
 def test_htmx_surface_exposes_expected_routes() -> None:
@@ -44,9 +44,9 @@ def test_homepage_renders_logged_in_user() -> None:
     client = client_for(FakeApp())
     client.cookies.set(
         "template_session",
-        security.sign(
+        signing.sign(
             {"subject": "user-123", "username": "admin"},
-            api_settings().session,
+            api_settings().session.secret_key.get_secret_value(),
         ),
     )
 
@@ -122,9 +122,9 @@ def test_logout_clears_session_and_redirects_to_keycloak() -> None:
     client = client_for(FakeApp())
     client.cookies.set(
         "template_session",
-        security.sign(
+        signing.sign(
             {"subject": "user-123", "username": "admin"},
-            api_settings().session,
+            api_settings().session.secret_key.get_secret_value(),
         ),
     )
 
