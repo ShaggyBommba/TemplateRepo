@@ -4,7 +4,7 @@
 
 {% block content %}
 <section
-  class="callback-panel card"
+  class="callback-panel panel"
   x-data="authCallback()"
   x-cloak
   @htmx:after-swap.window="handleSwap($event)"

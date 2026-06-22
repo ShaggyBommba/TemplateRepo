@@ -34,6 +34,11 @@ def test_homepage_renders_basic_template_shell() -> None:
     assert response.status_code == 200
     assert "template-app" in response.text
     assert "Layered service template" in response.text
+    assert "Operations overview" in response.text
+    assert "Service pipeline" in response.text
+    assert "Recent activity" in response.text
+    assert "SaaS template" in response.text
+    assert "color-scheme: dark" in response.text
     assert "htmx.org@2.0.4" in response.text
     assert "alpinejs@3.14.8" in response.text
     assert "@click" in response.text
@@ -81,6 +86,8 @@ def test_system_page_renders_feature_template() -> None:
 
     assert response.status_code == 200
     assert "<h1>System</h1>" in response.text
+    assert "Endpoint map" in response.text
+    assert "Auth surface" in response.text
     assert "Unavailable" in response.text
     assert 'href="/status"' in response.text
 

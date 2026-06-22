@@ -1,14 +1,55 @@
-<nav class="navbar" aria-label="Global">
-  <div class="navbar-inner">
-    <a class="brand" href="/">{{ state.name }}</a>
-    <div class="nav-actions">
-      <a class="nav-link" href="/system">System</a>
-      {% if user %}
-        <span class="user">{{ user.username }}</span>
-        <a class="button" href="/logout">Logout</a>
-      {% else %}
-        <a class="button" href="/login">Login</a>
-      {% endif %}
-    </div>
+<aside class="sidebar">
+  <a class="brand" href="/">
+    <span class="brand-mark">S</span>
+    <span class="brand-copy">
+      <span class="brand-name">{{ state.name }}</span>
+      <span class="brand-meta">SaaS template</span>
+    </span>
+  </a>
+
+  <div class="nav-section">
+    <span class="nav-label">Workspace</span>
+    <ul class="nav-list">
+      <li>
+        <a class="nav-link {{ 'active' if request.url.path == '/' else '' }}" href="/">
+          <span class="nav-icon split" aria-hidden="true"></span>
+          Overview
+        </a>
+      </li>
+      <li>
+        <a class="nav-link {{ 'active' if request.url.path == '/system' else '' }}" href="/system">
+          <span class="nav-icon" aria-hidden="true"></span>
+          System
+        </a>
+      </li>
+      <li>
+        <a class="nav-link" href="/status">
+          <span class="nav-icon dot" aria-hidden="true"></span>
+          Status API
+        </a>
+      </li>
+    </ul>
   </div>
-</nav>
+
+  <div class="sidebar-footer">
+    {% if user %}
+      <div class="stack">
+        <span class="nav-label">Signed in</span>
+        <span class="user">{{ user.username }}</span>
+      </div>
+      <a class="button" href="/logout">
+        <span class="button-icon" aria-hidden="true"></span>
+        Logout
+      </a>
+    {% else %}
+      <div class="stack">
+        <span class="nav-label">Access</span>
+        <span class="user">External identity provider</span>
+      </div>
+      <a class="button primary" href="/login">
+        <span class="button-icon dot" aria-hidden="true"></span>
+        Login
+      </a>
+    {% endif %}
+  </div>
+</aside>

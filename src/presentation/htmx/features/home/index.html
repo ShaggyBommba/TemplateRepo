@@ -2,46 +2,167 @@
 
 {% block content %}
 <div x-data='statusPanel({{ state | tojson }})'>
-  <header>
+  <div class="topbar">
+    <div class="user-line">
+      <span class="pill">
+        <span
+          class="status-dot"
+          :class="state.healthy ? 'ok' : 'warn'"
+          aria-hidden="true"
+        ></span>
+        <span x-text="state.status">{{ state.status }}</span>
+      </span>
+      <span class="pill">v<span x-text="state.version">{{ state.version }}</span></span>
+    </div>
+    <div class="actions">
+      {% if user %}
+        <span class="user">{{ user.username }}</span>
+        <a class="button" href="/logout">Logout</a>
+      {% else %}
+        <a class="button primary" href="/login">Login</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <section class="page-head">
     <div>
-      <h1 x-text="state.name">{{ state.name }}</h1>
-      <p>Layered service template</p>
+      <p class="eyebrow label">Workspace</p>
+      <h1>Operations overview</h1>
+      <p class="lede">Layered service template with auth, status, and system surfaces wired for an htmx SaaS shell.</p>
     </div>
     <div class="actions">
       <button
         type="button"
+        class="primary"
         @click="refresh()"
         :disabled="loading"
         :aria-busy="loading.toString()"
       >
+        <span class="button-icon dot" aria-hidden="true"></span>
         <span x-text="loading ? 'Refreshing...' : 'Refresh status'">Refresh status</span>
       </button>
     </div>
-  </header>
+  </section>
 
   <section
-    id="status"
-    class="grid"
+    class="summary-grid"
     aria-live="polite"
     :aria-busy="loading.toString()"
     x-transition.opacity.duration.150ms
   >
-    <article class="card">
+    <article class="metric">
       <span class="label">Status</span>
       <span
         class="value"
         :class="state.healthy ? 'ok' : 'warn'"
         x-text="state.status"
       >{{ state.status }}</span>
+      <span class="metric-copy">Application facade</span>
     </article>
-    <article class="card">
+    <article class="metric">
       <span class="label">Version</span>
       <span class="value" x-text="state.version">{{ state.version }}</span>
+      <span class="metric-copy">Release channel</span>
     </article>
-    <article class="card">
+    <article class="metric">
+      <span class="label">Identity</span>
+      <span class="value">{{ "Active" if user else "OAuth" }}</span>
+      <span class="metric-copy">{{ user.username if user else "Provider login" }}</span>
+    </article>
+    <article class="metric">
       <span class="label">HTMX</span>
       <span class="value">Enabled</span>
+      <span class="metric-copy">Alpine state active</span>
     </article>
+  </section>
+
+  <section class="dashboard-grid section-space">
+    <article class="panel">
+      <div class="panel-head">
+        <h2>Service pipeline</h2>
+        <span class="pill">Live</span>
+      </div>
+      <ul class="panel-list">
+        <li class="panel-item row">
+          <div class="stack">
+            <h3>Presentation</h3>
+            <p>FastAPI HTMX routes render feature-owned templates.</p>
+          </div>
+          <span class="pill">ready</span>
+        </li>
+        <li class="panel-item row">
+          <div class="stack">
+            <h3>Application</h3>
+            <p>Facade exposes health, version, and authorization entrypoints.</p>
+          </div>
+          <span class="pill">wired</span>
+        </li>
+        <li class="panel-item row">
+          <div class="stack">
+            <h3>Identity</h3>
+            <p>Login delegates to the external provider and stores a signed session.</p>
+          </div>
+          <span class="pill">oauth</span>
+        </li>
+      </ul>
+    </article>
+
+    <article class="panel">
+      <div class="panel-head">
+        <h2>Core surfaces</h2>
+        <span class="pill">3 APIs</span>
+      </div>
+      <div class="endpoint-grid">
+        <a class="button" href="/status">Status</a>
+        <a class="button" href="/health">Health</a>
+        <a class="button" href="/version">Version</a>
+      </div>
+      <div class="panel-item stack">
+        <span class="label">Session</span>
+        <p>{{ "Signed in as " ~ user.username if user else "No browser session" }}</p>
+      </div>
+      <div class="panel-item stack">
+        <span class="label">Callback</span>
+        <p>External login resolves through the htmx callback verifier.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="table-panel">
+    <div class="panel-head">
+      <h2>Recent activity</h2>
+      <span class="pill">Template data</span>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Boundary</th>
+          <th>Status</th>
+          <th>Owner</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td data-label="Area">Dashboard</td>
+          <td data-label="Boundary">presentation.htmx</td>
+          <td data-label="Status"><span class="ok">Ready</span></td>
+          <td data-label="Owner">Frontend</td>
+        </tr>
+        <tr>
+          <td data-label="Area">Authentication</td>
+          <td data-label="Boundary">features.auth</td>
+          <td data-label="Status"><span class="ok">OAuth</span></td>
+          <td data-label="Owner">Identity</td>
+        </tr>
+        <tr>
+          <td data-label="Area">System status</td>
+          <td data-label="Boundary">features.system</td>
+          <td data-label="Status"><span :class="state.healthy ? 'ok' : 'warn'" x-text="state.status">{{ state.status }}</span></td>
+          <td data-label="Owner">Runtime</td>
+        </tr>
+      </tbody>
+    </table>
   </section>
 
   <template x-if="error">
@@ -53,11 +174,6 @@
     ></p>
   </template>
 </div>
-
-<nav class="links" aria-label="System endpoints">
-  <a href="/health">Health JSON</a>
-  <a href="/version">Version JSON</a>
-</nav>
 
 <script>
   function statusPanel(initialState) {
