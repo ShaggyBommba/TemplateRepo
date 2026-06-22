@@ -202,6 +202,10 @@ src/presentation/htmx/
 at `src/presentation/htmx/features`, so feature routes render with
 feature-prefixed paths such as `home/index.html` and `auth/callback.html`.
 
+The HTMX visual language, tokens, layout primitives, and component conventions
+are documented in `docs/design.md`. Shared CSS and shell markup remain
+implemented in `src/presentation/htmx/features/shared/`.
+
 Keycloak realm configuration lives in
 `infrastructure/config/keycloak/realm-export.json`. The template client uses
 client roles named with the `resource:action` convention, such as

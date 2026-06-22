@@ -77,6 +77,8 @@ The documentation set is written for both engineers and AI coding agents:
 - [docs/workflows.md](docs/workflows.md) defines task execution procedure.
 - [docs/architecture.md](docs/architecture.md) defines the template
   architecture and extension blueprints.
+- [docs/design-system.md](docs/design-system.md) defines the HTMX SaaS visual
+  system, tokens, layout primitives, and component conventions.
 - [docs/tests.md](docs/tests.md) defines testing conventions.
 
 ## Job API Surface
