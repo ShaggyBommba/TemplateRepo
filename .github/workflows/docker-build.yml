@@ -14,26 +14,27 @@ jobs:
     permissions:
       contents: read
       packages: write
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_DB: app
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U app -d app"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       APP_DATABASE__HOST: localhost
-      APP_DATABASE__PORT: 5432
+      APP_DATABASE__PORT: "5433"
+      APP_DATABASE__HOST_PORT: "5433"
       APP_DATABASE__USER: app
       APP_DATABASE__PASSWORD: app
       APP_DATABASE__DATABASE: app
+      APP_KEYCLOAK__ADMIN_USER: admin
+      APP_KEYCLOAK__ADMIN_PASSWORD: admin
+      APP_KEYCLOAK__PORT: "8080"
+      APP_KEYCLOAK__BASE_URL: http://localhost:8080
+      APP_KEYCLOAK__REALM: template
+      APP_KEYCLOAK__CLIENT_ID: template
+      APP_KEYCLOAK__CLIENT_SECRET: template-secret
+      APP_KEYCLOAK__TIMEOUT_SECONDS: "5.0"
+      APP_DOZZLE__HOST_PORT: "8888"
+      APP_TRAEFIK__HTTP_PORT: "8081"
+      APP_TRAEFIK__HTTPS_PORT: "8443"
+      APP_TRAEFIK__DASHBOARD_PORT: "8089"
+      APP_KEYCLOAK__DOMAIN: keycloak.localhost
+      APP_DOZZLE__DOMAIN: dozzle.localhost
 
     steps:
       - name: Checkout repository
@@ -50,8 +51,46 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev --locked
 
+      - name: Write CI env file
+        run: |
+          cat > .env <<EOF
+          APP_ENV=test
+          APP_NAME=template
+          APP_VERSION=0.1.0
+          APP_DEBUG=false
+          APP_DATABASE__HOST=${APP_DATABASE__HOST}
+          APP_DATABASE__PORT=${APP_DATABASE__PORT}
+          APP_DATABASE__HOST_PORT=${APP_DATABASE__HOST_PORT}
+          APP_DATABASE__USER=${APP_DATABASE__USER}
+          APP_DATABASE__PASSWORD=${APP_DATABASE__PASSWORD}
+          APP_DATABASE__DATABASE=${APP_DATABASE__DATABASE}
+          APP_OUTBOX__DEFAULT_MAX_ATTEMPTS=3
+          APP_OUTBOX__CLAIM_TIMEOUT_SECONDS=300
+          APP_OUTBOX__OUTPUT_CHANNEL=default
+          APP_KEYCLOAK__ADMIN_USER=${APP_KEYCLOAK__ADMIN_USER}
+          APP_KEYCLOAK__ADMIN_PASSWORD=${APP_KEYCLOAK__ADMIN_PASSWORD}
+          APP_KEYCLOAK__PORT=${APP_KEYCLOAK__PORT}
+          APP_KEYCLOAK__BASE_URL=${APP_KEYCLOAK__BASE_URL}
+          APP_KEYCLOAK__REALM=${APP_KEYCLOAK__REALM}
+          APP_KEYCLOAK__CLIENT_ID=${APP_KEYCLOAK__CLIENT_ID}
+          APP_KEYCLOAK__CLIENT_SECRET=${APP_KEYCLOAK__CLIENT_SECRET}
+          APP_KEYCLOAK__TIMEOUT_SECONDS=${APP_KEYCLOAK__TIMEOUT_SECONDS}
+          APP_DOZZLE__HOST_PORT=${APP_DOZZLE__HOST_PORT}
+          APP_TRAEFIK__HTTP_PORT=${APP_TRAEFIK__HTTP_PORT}
+          APP_TRAEFIK__HTTPS_PORT=${APP_TRAEFIK__HTTPS_PORT}
+          APP_TRAEFIK__DASHBOARD_PORT=${APP_TRAEFIK__DASHBOARD_PORT}
+          APP_KEYCLOAK__DOMAIN=${APP_KEYCLOAK__DOMAIN}
+          APP_DOZZLE__DOMAIN=${APP_DOZZLE__DOMAIN}
+          APP_HEARTBEAT__BEATS=3
+          APP_HEARTBEAT__INTERVAL=1.0
+          APP_HEARTBEAT__MAX_BEATS=60
+          EOF
+
       - name: Validate compose config
         run: docker compose -f infrastructure/docker-compose.yml config --quiet
+
+      - name: Start database with compose
+        run: docker compose -f infrastructure/docker-compose.yml --profile infrastructure up -d --wait db
 
       - name: Build CSS
         run: uv run tailwindcss-extra -i src/presentation/htmx/static/css/input.css -o /tmp/template-app.css --minify
@@ -62,13 +101,17 @@ jobs:
       - name: Lint
         run: uv run python -m ruff check src tests migrations
 
-      - name: Test
-        run: uv run python -m pytest
-
       - name: Validate migrations
         run: |
           uv run alembic upgrade head
           uv run alembic check
+
+      - name: Test
+        run: uv run python -m pytest
+
+      - name: Stop compose infrastructure
+        if: always()
+        run: docker compose -f infrastructure/docker-compose.yml --profile infrastructure down --volumes --remove-orphans
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

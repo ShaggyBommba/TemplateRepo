@@ -52,6 +52,11 @@ The local `.env` file is required for infrastructure-backed tests. Copy
 `.env.example` to `.env` and keep the configured Postgres port aligned with
 `infrastructure/docker-compose.yml`.
 
+GitHub Actions writes a CI-specific `.env` from workflow environment variables,
+starts the Compose `db` service, validates migrations against the `app`
+database, and then runs pytest. The pytest fixture creates and migrates its own
+`test` database on that same Postgres instance.
+
 ## Test Layout
 
 Tests live under `tests/`, one file per behavior area. Prefer names that expose

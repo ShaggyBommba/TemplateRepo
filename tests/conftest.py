@@ -15,11 +15,25 @@ from infrastructure.config import Settings, get_settings
 
 logger = getLogger(__name__)
 
+ROOT = Path.cwd()
 ENV_FILE = ".env"
 TEST_DB = "test"
 
 
-def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
+def env(path: Path) -> None:
+    """Load environment variables from the .env file if it exists."""
+    if path.exists():
+        logger.info(f"Loading environment variables from {path}")
+        dotenv.load_dotenv(dotenv_path=path)
+    else:
+        logger.warning(
+            f"Environment file {path} does not exist. Using system environment variables."
+        )
+
+
+def run(
+    command: list[str], cwd: Path = Path.cwd(), env: dict[str, str] | None = None
+) -> None:
     result = subprocess.run(
         command,
         cwd=cwd,
@@ -36,38 +50,25 @@ def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> 
         )
 
 
-def env_path() -> Path:
-    path = Path.cwd() / ENV_FILE
-    if not path.exists():
-        raise RuntimeError(
-            f"{ENV_FILE} is required and was not found. "
-            "Copy .env and adjust test-specific DB settings."
-            f"Expected path: {path.resolve()}"
-        )
-    return path
-
-
 @pytest.fixture(scope="session", autouse=True)
 def infrastructure() -> Iterator[None]:
     """Set up the test infrastructure before running tests."""
-    root = Path.cwd()
-    path = env_path()
-    dotenv.load_dotenv(dotenv_path=path)
+    path = ROOT / ENV_FILE
+    env(path)
 
     logger.info("Starting test infrastructure...")
-    run(["task", "infra:up"], cwd=root)
+    run(["task", "infra:up"])
 
     yield
 
     logger.info("Stopping test infrastructure...")
-    run(["task", "infra:down"], cwd=root)
+    run(["task", "infra:down"])
 
 
 @pytest.fixture(scope="session", autouse=True)
 def database(infrastructure: None) -> Iterator[None]:
-    root = Path.cwd()
-    path = env_path()
-    dotenv.load_dotenv(dotenv_path=path)
+    """Create a disposable test database for the test session."""
+    path = ROOT / ENV_FILE
     settings = get_settings(env_file=path)
 
     logger.info(f"Creating test database: {TEST_DB}")
@@ -83,9 +84,9 @@ def database(infrastructure: None) -> Iterator[None]:
     sandbox = environ.copy()
     sandbox["APP_DATABASE__DATABASE"] = TEST_DB
 
+    logger.info(f"Running Alembic migrations on test database: {TEST_DB}")
     run(
         ["uv", "run", "alembic", "upgrade", "head"],
-        cwd=root,
         env=sandbox,
     )
 
@@ -109,7 +110,8 @@ def database(infrastructure: None) -> Iterator[None]:
 @pytest.fixture(scope="session")
 def settings(database) -> Settings:
     """Return settings configured for the test database."""
-    path = env_path()
+    path = ROOT / ENV_FILE
+    logger.info(f"Loading environment variables from {path}")
     dotenv.load_dotenv(dotenv_path=path)
     settings = get_settings(env_file=path)
     database = settings.database.model_copy(update={"database": TEST_DB})
