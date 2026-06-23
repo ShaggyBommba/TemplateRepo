@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import psycopg
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, MetaData, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from infrastructure.config import DatabaseSettings
@@ -11,9 +11,19 @@ from infrastructure.config import DatabaseSettings
 NAMESPACE = int.from_bytes(b"tmpl", "big")
 KEY = 1
 
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
 
 class Base(DeclarativeBase):
     """Infrastructure foundation that our Shared Kernel models inherit from."""
+
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class SqlDatabase:
@@ -46,20 +56,15 @@ class SqlDatabase:
             yield conn
 
     def create_all(self) -> None:
-        """Provision extensions and create all known database tables."""
+        """Create all known database tables for local tests and utilities."""
         import infrastructure.persistence.models  # noqa: F401
 
-        engine = self.engine()
-        if engine.dialect.name == "postgresql":
-            with engine.begin() as conn:
-                conn.execute(
-                    text("SELECT pg_advisory_xact_lock(:ns, :key)"),
-                    {"ns": NAMESPACE, "key": KEY},
-                )
-                Base.metadata.create_all(conn)
-            return
-
-        Base.metadata.create_all(engine)
+        with self.engine().begin() as conn:
+            conn.execute(
+                text("SELECT pg_advisory_xact_lock(:ns, :key)"),
+                {"ns": NAMESPACE, "key": KEY},
+            )
+            Base.metadata.create_all(conn)
 
     def drop_all(self) -> None:
         """Drop all known database tables."""

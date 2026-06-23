@@ -7,9 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal
 
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[2]
-
-
 class LoggingSettings(BaseModel):
     level: str = "INFO"
     json_output: bool = False
@@ -21,9 +18,8 @@ class LoggingSettings(BaseModel):
 
 
 class DatabaseSettings(BaseModel):
-    """Configuration for the database used by repositories."""
+    """Configuration for the Postgres database used by repositories."""
 
-    provider: str = "sqlite"
     host: str = "localhost"
     port: int = 5432
     user: str = "app"
@@ -33,21 +29,13 @@ class DatabaseSettings(BaseModel):
 
     @property
     def dsn(self) -> str:
-        match self.provider:
-            case "sqlite":
-                return f"sqlite:///{PACKAGE_ROOT / self.database}.db"
-            case "postgresql":
-                return (
-                    f"postgresql+psycopg://{self.user}:{self.password.get_secret_value()}"
-                    f"@{self.host}:{self.port}/{self.database}"
-                )
-            case _:
-                raise ValueError(f"Unsupported database provider: {self.provider}")
+        return (
+            f"postgresql+psycopg://{self.user}:{self.password.get_secret_value()}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
 
     @property
     def psycopg_dsn(self) -> str:
-        if self.provider != "postgresql":
-            raise ValueError("psycopg connections require the postgresql provider")
         return (
             f"postgresql://{self.user}:{self.password.get_secret_value()}"
             f"@{self.host}:{self.port}/{self.database}"
@@ -147,5 +135,7 @@ class Settings(BaseSettings):
 
 
 @lru_cache()
-def get_settings() -> Settings:
+def get_settings(env_file: Path | None = None) -> Settings:
+    if env_file is not None and env_file.exists():
+        return Settings(_env_file=env_file)  # type: ignore
     return Settings()

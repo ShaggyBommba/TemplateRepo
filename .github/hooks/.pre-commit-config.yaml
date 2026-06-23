@@ -12,19 +12,18 @@ repos:
         entry: uv run python -m ruff check --fix
         language: system
         types: [python]
-        # Optional: Restrict to src and tests if you don't want it running on root scripts
-        files: ^(src|tests)/
+        files: ^(src|tests|migrations)/
 
       - id: ruff-format
         name: Ruff Formatter
         entry: uv run python -m ruff format
         language: system
         types: [python]
-        files: ^(src|tests)/
+        files: ^(src|tests|migrations)/
 
       - id: compileall
         name: Compile Python Files
         entry: uv run python -m compileall
         language: system
         types: [python]
-        files: ^(src|tests)/
+        files: ^(src|tests|migrations)/

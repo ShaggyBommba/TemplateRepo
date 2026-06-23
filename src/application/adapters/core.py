@@ -59,6 +59,10 @@ class OutboxRepo(Protocol):
         """Insert or revive one idempotent outbox job."""
         ...
 
+    def get(self, job_id: str, /) -> OutboxJob | None:
+        """Read one job by id."""
+        ...
+
     def due(
         self, topic: EventTopic, kind: EventKind, version: int, limit: int
     ) -> list[OutboxJob]:

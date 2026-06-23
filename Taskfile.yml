@@ -19,37 +19,47 @@ tasks:
   lint:
     desc: Lint backend source
     cmds:
-      - uv run python -m ruff check src tests
+      - uv run python -m ruff check src tests migrations
 
   format:
     desc: Format backend source
     cmds:
-      - uv run python -m ruff format src tests
+      - uv run python -m ruff format src tests migrations
 
   format-check:
     desc: Check backend formatting
     cmds:
-      - uv run python -m ruff format --check src tests
+      - uv run python -m ruff format --check src tests migrations
 
   hooks:
     desc: Run pre-commit hooks
     cmds:
-      - uv run pre-commit run --config .github/hooks/.pre-commit-config.yaml --all-files
-
-  install-hooks:
-    desc: Install local git hooks
-    cmds:
       - uv run pre-commit install --config .github/hooks/.pre-commit-config.yaml
+      - uv run pre-commit run --config .github/hooks/.pre-commit-config.yaml --all-files
 
   css:
     desc: Build the HTMX stylesheet (Tailwind + daisyUI, no Node)
     cmds:
-      - uv run tailwindcss-extra -i src/presentation/htmx/static/css/input.css -o src/presentation/htmx/static/css/app.css --minify
+      - | 
+        uv run tailwindcss-extra 
+        -i src/presentation/htmx/static/css/input.css 
+        -o src/presentation/htmx/static/css/app.css --minify
 
-  css-watch:
-    desc: Rebuild the HTMX stylesheet on change
+  db:update:
+    desc: Apply database migrations
     cmds:
-      - uv run tailwindcss-extra -i src/presentation/htmx/static/css/input.css -o src/presentation/htmx/static/css/app.css --watch
+      - uv run alembic upgrade head
+
+  db:migration:
+    desc: Generate a database migration from SQLAlchemy models
+    cmds:
+      - '[ -n "{{.CLI_ARGS}}" ] || (echo "Usage: task db:migration -- <message>" && exit 1)'
+      - uv run alembic revision --autogenerate -m "{{.CLI_ARGS}}"
+
+  db:check:
+    desc: Check whether SQLAlchemy models have unapplied migration changes
+    cmds:
+      - uv run alembic check
 
   check:
     desc: Run backend checks
@@ -58,17 +68,25 @@ tasks:
       - task: lint
       - task: test
 
-  infra:
+  infra:up:
     desc: Start infrastructure containers if they are not already running
     cmds:
       - docker compose -f infrastructure/docker-compose.yml --profile infrastructure up -d
     status:
       - docker compose -f infrastructure/docker-compose.yml ps --format json db | grep -q '"State":"running"'
 
+  infra:down:
+    desc: Stop infrastructure containers
+    cmds:
+      - docker compose -f infrastructure/docker-compose.yml --profile infrastructure down
+    status:
+      - docker compose -f infrastructure/docker-compose.yml ps --format json db | grep -q '"State":"exited"'
+  
   dev:
     desc: Run the application in development mode
     cmds:
-      - task: infra
+      - task: infra:up
+      - task: db:update
       - task: css
       - uv run dev
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from logging import getLogger
 
+from application.adapters.core import UnitOfWork
 from application.handlers.heartbeat import HeartbeatHandler
 from application.services.outbox import EventDispatcher, OutboxRunner
 from application.usecases.auth import Authenticate, Authorize
@@ -36,10 +37,9 @@ class App:
     @classmethod
     def create(cls, settings: Settings) -> App:
         database = SqlDatabase(settings.database)
-        database.create_all()
         dispatcher = EventDispatcher()
 
-        def uow_factory() -> SqlUnitOfWork:
+        def uow_factory() -> UnitOfWork:
             return SqlUnitOfWork(
                 database.sessions(),
                 settings.outbox,
@@ -86,6 +86,13 @@ class App:
     @property
     def healthy(self) -> bool:
         return True
+
+    def uow(self) -> UnitOfWork:
+        """Build one SQL unit of work for app-boundary callers."""
+        return SqlUnitOfWork(
+            self.database.sessions(),
+            self.settings.outbox,
+        )
 
     async def start(self) -> None:
         """Start the application."""

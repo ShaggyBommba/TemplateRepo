@@ -29,7 +29,8 @@ dependencies = [
   "uvicorn>=0.49,<1",
   "jinja2-fragments>=1.12.0",
   "nest-asyncio>=1.6.0",
-  "websockets>=15.0.1",
+  "websockets>=16.0",
+  "alembic>=1.18,<2",
 ]
 
 [project.scripts]
@@ -61,5 +62,5 @@ dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.14.8",
-    "websockets>=15,<16",
+    "websockets>=16.0",
 ]
