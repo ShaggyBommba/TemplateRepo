@@ -1,7 +1,6 @@
 # AGENTS.md
 
-Bootstrap instructions for coding agents working on app, a service that
-scrapes American Express activity into a local store. See `docs/architecture.md`
+See `docs/architecture.md`
 for the repository-specific model and boundaries.
 
 ## Required Context

@@ -329,8 +329,12 @@ The template exposes job status via two routes in `presentation/api/routes/jobs.
   - Uses `202 Accepted` for `pending`/`running` and `200 OK` otherwise.
 - `GET /jobs/ws/{job_id}` (WebSocket)
   - Streams JSON status updates for one job id over a long-lived socket.
-  - The handler subscribes to the Postgres outbox notification channel and
-    forwards updates where `payload.id == job_id`.
+  - The handler subscribes to the Postgres outbox notification channel, then
+    sends the job's current status once before streaming, so a client that
+    connects after a notification—or after the job already finished—still sees
+    state. Subscribing before the snapshot means intervening updates are
+    buffered, not lost.
+  - It forwards subsequent updates where `payload.id == job_id`.
   - The route closes with code `1000` after terminal states (`done`, `failed`) so
     clients can exit cleanly.
 
@@ -353,6 +357,40 @@ The admin pane is a browser operations surface. It should not duplicate the job
 websocket implementation in templates. Browser session cookies remain
 presentation state; API authorization for protected JSON routes continues to use
 bearer-token roles.
+
+## Heartbeat Demo Job
+
+The heartbeat job is the template's wired end-to-end example. It exercises the
+full durable-job path with no external dependencies, so it doubles as a smoke
+test for the outbox runner and the job websocket.
+
+Pipeline:
+
+- `Heartbeat` event (`EventTopic.HEARTBEAT` / `EventKind.BEAT`) in
+  `src/domain/event.py`.
+- `RequestHeartbeatUseCase` in `src/application/usecases/heartbeat.py` appends one
+  heartbeat job to the outbox and commits. It fills defaults and clamps the beat
+  count to a safety cap.
+- `HeartbeatHandler` in `src/application/handlers/heartbeat.py` emits each beat,
+  pausing `interval` between beats.
+- `application/app.py` registers the handler and includes `Heartbeat` in the
+  outbox runner's event list, exposing `app.request_heartbeat(...)`.
+- `HeartbeatSettings` in `src/infrastructure/config.py` (`APP_HEARTBEAT__*`) holds
+  the default beat count, default interval, and the beat-count safety cap.
+
+Trigger and observe:
+
+- `POST /jobs/heartbeat` (API app) with an optional
+  `{"beats": int, "interval": float}` body enqueues a job and returns
+  `{"job_id": "..."}` with `202 Accepted`.
+- The admin pane (`GET /admin`, role `users:create`) can trigger a run from the
+  browser. `POST /admin/heartbeat` is a same-origin HTMX-app route that enqueues
+  through `app.request_heartbeat(...)` and returns `{"job_id": "..."}`; the
+  `adminPane()` Alpine component then reuses its existing `connect()` to stream
+  the new job. Triggering through the HTMX app avoids cross-origin calls to the
+  API app.
+- The worker claims the job and the status streams `pending -> running -> done`
+  over `GET /jobs/ws/{job_id}`; per-beat progress is logged at `info`.
 
 ## Service / Use Case Blueprint
 

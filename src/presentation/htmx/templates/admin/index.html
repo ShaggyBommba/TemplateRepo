@@ -4,7 +4,7 @@
 
 {% block content %}
 <div
-  x-data='adminPane({{ jobs_ws_url | tojson }}, {{ job_id | tojson }})'
+  x-data='adminPane({{ jobs_ws_url | tojson }}, {{ job_id | tojson }}, {{ heartbeat_url | tojson }})'
   x-init="jobId && connect()"
 >
   <div class="topbar">
@@ -31,6 +31,31 @@
       <h2>Job stream</h2>
       <span class="badge badge-outline" x-text="socketState">Idle</span>
     </div>
+    <form class="flow-stack" @submit.prevent="startHeartbeat()">
+      <label class="meta-label" for="heartbeat-beats">Heartbeat beats</label>
+      <input
+        class="input"
+        id="heartbeat-beats"
+        name="beats"
+        type="number"
+        min="1"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="Default beats"
+        x-model="beats"
+      >
+      <div class="actions">
+        <button
+          type="submit"
+          class="btn btn-sm btn-primary"
+          :disabled="starting"
+          :aria-busy="starting.toString()"
+        >
+          <span class="button-icon dot" aria-hidden="true"></span>
+          Start heartbeat
+        </button>
+      </div>
+    </form>
     <form class="flow-stack" @submit.prevent="connect()">
       <label class="meta-label" for="job-id">Job ID</label>
       <input
@@ -60,15 +85,45 @@
 </div>
 
 <script>
-  function adminPane(wsTemplate, initialJobId) {
+  function adminPane(wsTemplate, initialJobId, heartbeatUrl) {
     return {
       jobId: initialJobId,
+      beats: "",
+      starting: false,
       socketState: "Idle",
       latestMessage: "",
       error: "",
       connection: null,
       get connected() {
         return this.connection !== null && this.connection.readyState === WebSocket.OPEN;
+      },
+      async startHeartbeat() {
+        this.error = "";
+        this.starting = true;
+        this.socketState = "Starting";
+        try {
+          const body = {};
+          const beats = parseInt(this.beats, 10);
+          if (!Number.isNaN(beats)) {
+            body.beats = beats;
+          }
+          const response = await fetch(heartbeatUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+          }
+          const data = await response.json();
+          this.jobId = data.job_id;
+          this.connect();
+        } catch (err) {
+          this.socketState = "Error";
+          this.error = "Could not start heartbeat.";
+        } finally {
+          this.starting = false;
+        }
       },
       connect() {
         const id = this.jobId.trim();

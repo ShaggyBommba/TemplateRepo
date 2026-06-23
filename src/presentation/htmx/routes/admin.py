@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi import HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
 from application.app import App, get_app
 from infrastructure.config import Settings, get_settings
@@ -49,8 +50,48 @@ def admin_index(
             "user": user,
             "job_id": job_id,
             "jobs_ws_url": job_websocket_template(request, settings),
+            "heartbeat_url": str(request.url_for("admin_heartbeat")),
         },
     )
+
+
+class HeartbeatTriggerRequest(BaseModel):
+    beats: int | None = Field(default=None, ge=1)
+    interval: float | None = Field(default=None, gt=0)
+
+
+class HeartbeatTriggerResponse(BaseModel):
+    job_id: str
+
+
+@routes.post(
+    "/admin/heartbeat",
+    status_code=status.HTTP_202_ACCEPTED,
+    name="admin_heartbeat",
+)
+def admin_heartbeat(
+    request: Request,
+    payload: HeartbeatTriggerRequest,
+    app: App = Depends(get_app),
+) -> HeartbeatTriggerResponse:
+    settings = get_settings()
+    user = security.get(request, settings.session)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "auth.unauthenticated", "message": "Sign in required"},
+        )
+    if ADMIN_ROLE not in set(user.get("roles") or ()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "auth.forbidden",
+                "message": f"Missing required role: {ADMIN_ROLE}",
+            },
+        )
+
+    job = app.request_heartbeat(payload.beats, payload.interval)
+    return HeartbeatTriggerResponse(job_id=job.id)
 
 
 def job_websocket_template(request: Request, settings: Settings) -> str:

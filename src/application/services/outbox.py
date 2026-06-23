@@ -91,10 +91,10 @@ class OutboxRunner:
                         uow.outbox.mark(job.id, JobStatus.DONE)
                         uow.commit()
 
-    async def run(self, interval_seconds: float = 1.0) -> None:
+    async def run(self, interval: float = 1.0) -> None:
         while True:
             await self.poll()
-            await asyncio.sleep(interval_seconds)
+            await asyncio.sleep(interval)
 
 
 class EventDispatcher:

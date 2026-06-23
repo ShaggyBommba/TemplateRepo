@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -17,6 +18,7 @@ def test_htmx_surface_exposes_expected_routes() -> None:
     assert set(paths) == {
         "/",
         "/admin",
+        "/admin/heartbeat",
         "/auth/callback/verify",
         "/callback",
         "/health",
@@ -181,6 +183,99 @@ def test_admin_page_rejects_user_without_create_role() -> None:
     assert response.json()["detail"]["message"] == "Missing required role: users:create"
 
 
+def test_admin_page_renders_heartbeat_trigger() -> None:
+    client = client_for(FakeApp())
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "admin",
+                "roles": ["users:create", "users:read"],
+            }
+        ),
+    )
+
+    response = client.get("/admin")
+
+    assert response.status_code == 200
+    assert "Start heartbeat" in response.text
+    assert "startHeartbeat()" in response.text
+    assert "/admin/heartbeat" in response.text
+
+
+def test_admin_heartbeat_enqueues_job_for_admin() -> None:
+    app = FakeApp()
+    client = client_for(app)
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "admin",
+                "roles": ["users:create", "users:read"],
+            }
+        ),
+    )
+
+    response = client.post("/admin/heartbeat", json={"beats": 5})
+
+    assert response.status_code == 202
+    assert response.json() == {"job_id": "job-hb"}
+    assert app.heartbeat_calls == [(5, None)]
+
+
+def test_admin_heartbeat_uses_defaults_when_body_empty() -> None:
+    app = FakeApp()
+    client = client_for(app)
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "admin",
+                "roles": ["users:create", "users:read"],
+            }
+        ),
+    )
+
+    response = client.post("/admin/heartbeat", json={})
+
+    assert response.status_code == 202
+    assert app.heartbeat_calls == [(None, None)]
+
+
+def test_admin_heartbeat_rejects_anonymous_user() -> None:
+    app = FakeApp()
+    client = client_for(app)
+
+    response = client.post("/admin/heartbeat", json={})
+
+    assert response.status_code == 401
+    assert app.heartbeat_calls == []
+
+
+def test_admin_heartbeat_rejects_user_without_create_role() -> None:
+    app = FakeApp()
+    client = client_for(app)
+    client.cookies.set(
+        "template_session",
+        signed_session(
+            {
+                "subject": "user-123",
+                "username": "viewer",
+                "roles": ["users:read"],
+            }
+        ),
+    )
+
+    response = client.post("/admin/heartbeat", json={})
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "auth.forbidden"
+    assert app.heartbeat_calls == []
+
+
 def test_login_redirects_to_keycloak_and_sets_state_cookie() -> None:
     client = client_for(FakeApp())
 
@@ -325,6 +420,7 @@ class FakeApp:
         self.healthy = healthy
         self.name = "template-app"
         self.version = "0.9.0"
+        self.heartbeat_calls: list[tuple[int | None, float | None]] = []
 
     def authenticate(self, token: str) -> Principal:
         return Principal(
@@ -332,3 +428,11 @@ class FakeApp:
             username="admin",
             roles=frozenset({"users:create", "users:read"}),
         )
+
+    def request_heartbeat(
+        self,
+        beats: int | None = None,
+        interval: float | None = None,
+    ) -> SimpleNamespace:
+        self.heartbeat_calls.append((beats, interval))
+        return SimpleNamespace(id="job-hb")

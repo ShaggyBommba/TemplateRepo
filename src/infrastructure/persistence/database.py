@@ -40,7 +40,9 @@ class SqlDatabase:
 
     @asynccontextmanager
     async def connection(self) -> AsyncGenerator[psycopg.AsyncConnection, None]:
-        async with await psycopg.AsyncConnection.connect(self.settings.dsn) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            self.settings.psycopg_dsn,
+        ) as conn:
             yield conn
 
     def create_all(self) -> None:

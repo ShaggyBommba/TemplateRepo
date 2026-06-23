@@ -44,6 +44,15 @@ class DatabaseSettings(BaseModel):
             case _:
                 raise ValueError(f"Unsupported database provider: {self.provider}")
 
+    @property
+    def psycopg_dsn(self) -> str:
+        if self.provider != "postgresql":
+            raise ValueError("psycopg connections require the postgresql provider")
+        return (
+            f"postgresql://{self.user}:{self.password.get_secret_value()}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
+
 
 class OutboxSettings(BaseModel):
     """Configuration for durable outbox processing policy."""
@@ -51,6 +60,14 @@ class OutboxSettings(BaseModel):
     default_max_attempts: int = Field(default=3, ge=1)
     claim_timeout_seconds: int = Field(default=300, ge=1)
     output_channel: str = "default"
+
+
+class HeartbeatSettings(BaseModel):
+    """Defaults and safety cap for the demo heartbeat job."""
+
+    beats: int = Field(default=3, ge=1)
+    interval: float = Field(default=1.0, gt=0)
+    max_beats: int = Field(default=60, ge=1)
 
 
 class KeycloakSettings(BaseModel):
@@ -117,6 +134,7 @@ class Settings(BaseSettings):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     outbox: OutboxSettings = Field(default_factory=OutboxSettings)
+    heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
     keycloak: KeycloakSettings = Field(default_factory=KeycloakSettings)
     session: SessionSettings = Field(default_factory=SessionSettings)
 

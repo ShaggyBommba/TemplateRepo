@@ -12,8 +12,7 @@ class JobStatus(StrEnum):
 class EventTopic(StrEnum):
     """Event topic, used for categorization and routing."""
 
-    SCRAPE = "scrape"
-    BILLING = "billing"
+    HEARTBEAT = "heartbeat"
 
 
 class EventKind(StrEnum):
@@ -23,3 +22,4 @@ class EventKind(StrEnum):
     UPDATED = "updated"
     DELETED = "deleted"
     PARSED = "parsed"
+    BEAT = "beat"

@@ -46,3 +46,12 @@ class Event(Generic[PayloadT]):
     def key(self) -> str:
         """Return the unique key for this event, used for idempotency."""
         return f"{self.topic.value}:{self.kind.value}:{self.version}:{self.id}"
+
+
+@register
+class Heartbeat(Event[dict[str, Any]]):
+    """Demo event: emit a sequence of beats to exercise the outbox pipeline."""
+
+    topic = EventTopic.HEARTBEAT
+    kind = EventKind.BEAT
+    version = 1

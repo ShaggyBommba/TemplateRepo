@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import psycopg
+import pytest
+from pydantic import SecretStr
+
 from infrastructure.config import DatabaseSettings
 from infrastructure.persistence.database import (
     Base,
@@ -44,6 +48,14 @@ class FakeEngine:
         return FakeTransaction(self.connection)
 
 
+class FakeAsyncConnection:
+    async def __aenter__(self) -> "FakeAsyncConnection":
+        return self
+
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
+        return None
+
+
 def test_create_all_serializes_postgresql_schema_creation(monkeypatch) -> None:
     calls: list[tuple[str, Any]] = []
     engine = FakeEngine("postgresql", calls)
@@ -78,3 +90,48 @@ def test_create_all_uses_plain_metadata_creation_for_sqlite(monkeypatch) -> None
     database.create_all()
 
     assert calls == [("create_all", engine)]
+
+
+def test_postgresql_settings_expose_plain_psycopg_dsn() -> None:
+    settings = DatabaseSettings(
+        provider="postgresql",
+        host="db",
+        port=6543,
+        user="user",
+        password=SecretStr("secret"),
+        database="service",
+    )
+
+    assert settings.dsn == "postgresql+psycopg://user:secret@db:6543/service"
+    assert settings.psycopg_dsn == "postgresql://user:secret@db:6543/service"
+
+
+def test_psycopg_dsn_requires_postgresql_provider() -> None:
+    settings = DatabaseSettings(provider="sqlite")
+
+    with pytest.raises(ValueError, match="postgresql provider"):
+        settings.psycopg_dsn
+
+
+async def test_connection_uses_plain_psycopg_dsn(monkeypatch) -> None:
+    calls: list[str] = []
+
+    async def connect(dsn: str) -> FakeAsyncConnection:
+        calls.append(dsn)
+        return FakeAsyncConnection()
+
+    monkeypatch.setattr(psycopg.AsyncConnection, "connect", connect)
+    settings = DatabaseSettings(
+        provider="postgresql",
+        host="db",
+        port=6543,
+        user="user",
+        password=SecretStr("secret"),
+        database="service",
+    )
+    database = SqlDatabase(settings)
+
+    async with database.connection() as conn:
+        assert isinstance(conn, FakeAsyncConnection)
+
+    assert calls == ["postgresql://user:secret@db:6543/service"]

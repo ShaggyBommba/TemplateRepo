@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from functools import lru_cache
 from logging import getLogger
 
+from application.handlers.heartbeat import HeartbeatHandler
 from application.services.outbox import EventDispatcher, OutboxRunner
 from application.usecases.auth import Authenticate, Authorize
+from application.usecases.heartbeat import RequestHeartbeatUseCase
 from application.usecases.jobs import GetJobStatusUseCase
+from domain.event import Heartbeat
 from infrastructure.auth.keycloak import KeycloakVerifier
 from infrastructure.config import Settings, get_settings
 from infrastructure.observability.logger import LoggingService
@@ -28,6 +31,7 @@ class App:
     authorize: Authorize
     runner: OutboxRunner
     get_job_status: GetJobStatusUseCase
+    request_heartbeat: RequestHeartbeatUseCase
 
     @classmethod
     def create(cls, settings: Settings) -> App:
@@ -45,9 +49,17 @@ class App:
         authenticate = Authenticate(verifier)
         authorize = Authorize(verifier)
         get_job_status = GetJobStatusUseCase(uow_factory)
+        request_heartbeat = RequestHeartbeatUseCase(
+            uow_factory,
+            default_beats=settings.heartbeat.beats,
+            default_interval=settings.heartbeat.interval,
+            max_beats=settings.heartbeat.max_beats,
+        )
+
+        dispatcher.register(Heartbeat, HeartbeatHandler())
         runner = OutboxRunner(
             dispatcher=dispatcher,
-            events=(),
+            events=(Heartbeat,),
             limit=settings.worker_batch_limit,
             factory=uow_factory,
         )
@@ -60,6 +72,7 @@ class App:
             authorize=authorize,
             runner=runner,
             get_job_status=get_job_status,
+            request_heartbeat=request_heartbeat,
         )
 
     @property

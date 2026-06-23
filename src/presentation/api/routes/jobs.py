@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -47,6 +48,32 @@ class JobStatusResponse(BaseModel):
 
 
 
+class HeartbeatRequest(BaseModel):
+    beats: int | None = Field(default=None, ge=1)
+    interval: float | None = Field(default=None, gt=0)
+
+
+class HeartbeatAccepted(BaseModel):
+    job_id: str
+
+    @classmethod
+    def from_domain(cls, job: OutboxJob[dict[str, object]]) -> HeartbeatAccepted:
+        return cls(job_id=job.id)
+
+
+@routes.post(
+    "/heartbeat",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=HeartbeatAccepted,
+)
+def heartbeat(
+    request: HeartbeatRequest,
+    app: App = Depends(get_app),
+) -> HeartbeatAccepted:
+    job = app.request_heartbeat(request.beats, request.interval)
+    return HeartbeatAccepted.from_domain(job)
+
+
 @routes.get("/{job_id}", response_model=JobStatusResponse)
 def get(
     job_id: str,
@@ -80,6 +107,7 @@ async def stream(
     Listens natively to the Postgres outbox channel and filters updates 
     for a specific job_id over a persistent WebSocket connection.
     """
+    terminal = {JobStatus.DONE, JobStatus.FAILED}
     await websocket.accept()
     try:
         async with app.database.connection() as conn:
@@ -87,20 +115,40 @@ async def stream(
                 channel=sql.Identifier(app.settings.outbox.output_channel)
             )
             await conn.execute(query)
-        
+            await conn.commit()
+
+            # Send the current status first so clients that connect after a
+            # notification (or after the job already finished) still see state.
+            # LISTEN is registered above, so updates between this snapshot and
+            # the stream below are buffered, not lost.
+            try:
+                job = await asyncio.to_thread(app.get_job_status, job_id)
+            except JobNotFound:
+                job = None
+            if job is not None:
+                await websocket.send_json(
+                    JobStatusResponse.from_domain(job).model_dump(mode="json")
+                )
+                if job.status in terminal:
+                    await websocket.close(code=1000, reason="Job completed")
+                    return
+
             async for notification in conn.notifies():
                 try:
                     data = json.loads(notification.payload)
-                    obj = JobStatusResponse.model_validate(data).model_dump()
-                    if data.get("id") == job_id:
-                        await websocket.send_json(obj)
-                        
-                        # Optimization: If the job reaches a terminal state, gracefully close down
-                        if data.get("status") in ["done", "failed"]:
-                            await websocket.close(code=1000, reason="Job completed")
-                            break
-                            
-                except (json.JSONDecodeError, KeyError):
+                except json.JSONDecodeError:
                     continue
+                if data.get("id") != job_id:
+                    continue
+
+                update = OutboxJob.model_validate(data)
+                await websocket.send_json(
+                    JobStatusResponse.from_domain(update).model_dump(mode="json")
+                )
+
+                # Optimization: once a job reaches a terminal state, close cleanly.
+                if update.status in terminal:
+                    await websocket.close(code=1000, reason="Job completed")
+                    break
     except WebSocketDisconnect:
         pass
