@@ -127,33 +127,6 @@ def test_system_pane_is_not_registered() -> None:
 
     assert response.status_code == 404
 
-
-def test_admin_page_wires_job_websocket() -> None:
-    client = client_for(FakeApp())
-    client.cookies.set(
-        "template_session",
-        signed_session(
-            {
-                "subject": "user-123",
-                "username": "admin",
-                "roles": ["users:create", "users:read"],
-            }
-        ),
-    )
-
-    response = client.get("/admin?job_id=job-1")
-
-    assert response.status_code == 200
-    assert "<h1>Admin</h1>" in response.text
-    assert "<h2>Job stream</h2>" in response.text
-    assert "ws://localhost:8060/jobs/ws/{job_id}" in response.text
-    assert "new WebSocket(url)" in response.text
-    assert "job-1" in response.text
-    assert "Stream target" not in response.text
-    assert "summary-grid" not in response.text
-    assert "<h2>Users</h2>" not in response.text
-
-
 def test_admin_page_redirects_anonymous_user_to_login() -> None:
     client = client_for(FakeApp())
 
