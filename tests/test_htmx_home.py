@@ -127,6 +127,7 @@ def test_system_pane_is_not_registered() -> None:
 
     assert response.status_code == 404
 
+
 def test_admin_page_redirects_anonymous_user_to_login() -> None:
     client = client_for(FakeApp())
 
