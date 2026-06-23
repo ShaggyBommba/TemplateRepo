@@ -18,15 +18,16 @@ blueprints and extension checklist.
 - Python `>=3.12,<3.14`
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - `task` if you want to use the bundled task commands
+- Docker with Compose v2 for local infrastructure and `task dev`
 
 ## Setup
 
 ```bash
 task sync
+cp .env.example .env
 ```
 
-If this template is specialized for a concrete product, add project-specific
-environment variables to `.env.example` and document them here.
+The example environment runs the app against local Postgres and Keycloak.
 
 ## Running
 
@@ -40,11 +41,25 @@ dev = "main:main"
 For local development:
 
 ```bash
-task dev      # or: uv run dev
+task dev
 ```
 
-When the template is adapted, replace this section with the concrete entrypoints
-that developers should exercise.
+Open:
+
+- API health: http://localhost:8060/health
+- API docs: http://localhost:8060/docs
+- HTMX app: http://localhost:8061/
+- Admin pane: http://localhost:8061/admin
+- Keycloak: http://localhost:8080/
+- Dozzle logs: http://localhost:8888/
+
+`uv run dev` starts only the API, HTMX app, and worker. Use `task dev` for a
+fresh local run because it also starts infrastructure and builds CSS.
+
+Database tables are created at app startup from SQLAlchemy metadata; there is no
+Alembic migration command yet. Keycloak seed data is imported from
+`infrastructure/config/keycloak/realm-export.json`. Redis is not used by this
+template.
 
 ## Testing
 
@@ -77,7 +92,7 @@ The documentation set is written for both engineers and AI coding agents:
 - [docs/workflows.md](docs/workflows.md) defines task execution procedure.
 - [docs/architecture.md](docs/architecture.md) defines the template
   architecture and extension blueprints.
-- [docs/design-system.md](docs/design-system.md) defines the HTMX SaaS visual
+- [docs/design.md](docs/design.md) defines the HTMX SaaS visual
   system, tokens, layout primitives, and component conventions.
 - [docs/tests.md](docs/tests.md) defines testing conventions.
 

@@ -32,6 +32,7 @@ env/
 
 # Local runtime state
 .logs/
+*.log
 downloads/
 .amex-browser-profile/
 *.db

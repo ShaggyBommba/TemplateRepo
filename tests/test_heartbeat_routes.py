@@ -38,7 +38,7 @@ def test_heartbeat_route_enqueues_job_and_returns_id() -> None:
     assert app.calls == [(2, 0.5)]
 
 
-def test_heartbeat_route_uses_defaults_when_body_missing() -> None:
+def test_heartbeat_route_rejects_missing_body() -> None:
     # Arrange
     app = FakeApp(make_job())
     api = FastAPI()
@@ -48,6 +48,22 @@ def test_heartbeat_route_uses_defaults_when_body_missing() -> None:
 
     # Act
     response = client.post("/jobs/heartbeat")
+
+    # Assert
+    assert response.status_code == 422
+    assert app.calls == []
+
+
+def test_heartbeat_route_uses_defaults_when_body_is_empty() -> None:
+    # Arrange
+    app = FakeApp(make_job())
+    api = FastAPI()
+    api.dependency_overrides[get_app] = lambda: app
+    api.include_router(routes)
+    client = TestClient(api)
+
+    # Act
+    response = client.post("/jobs/heartbeat", json={})
 
     # Assert
     assert response.status_code == 202

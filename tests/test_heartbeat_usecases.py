@@ -54,7 +54,9 @@ class FakeUnitOfWork:
         return None
 
 
-def make_usecase(uow: FakeUnitOfWork, *, max_beats: int = 60) -> RequestHeartbeatUseCase:
+def make_usecase(
+    uow: FakeUnitOfWork, *, max_beats: int = 60
+) -> RequestHeartbeatUseCase:
     return RequestHeartbeatUseCase(
         lambda: uow,
         default_beats=3,

@@ -33,7 +33,11 @@ dependencies = [
 ]
 
 [project.scripts]
+app = "main:main"
+api = "presentation.api.app:main"
 dev = "main:main"
+htmx = "presentation.htmx.app:main"
+worker = "presentation.worker.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

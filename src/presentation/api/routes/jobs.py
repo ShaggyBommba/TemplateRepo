@@ -47,7 +47,6 @@ class JobStatusResponse(BaseModel):
         )
 
 
-
 class HeartbeatRequest(BaseModel):
     beats: int | None = Field(default=None, ge=1)
     interval: float | None = Field(default=None, gt=0)
@@ -96,7 +95,6 @@ def get(
     return JobStatusResponse.from_domain(job)
 
 
-
 @routes.websocket("/ws/{job_id}")
 async def stream(
     websocket: WebSocket,
@@ -104,7 +102,7 @@ async def stream(
     app: App = Depends(get_app),
 ) -> None:
     """
-    Listens natively to the Postgres outbox channel and filters updates 
+    Listens natively to the Postgres outbox channel and filters updates
     for a specific job_id over a persistent WebSocket connection.
     """
     terminal = {JobStatus.DONE, JobStatus.FAILED}

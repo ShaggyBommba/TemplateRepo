@@ -28,13 +28,13 @@ class OutboxRepo:
         self.session = session
         self.settings = settings
 
-
-
     def notify(self, job: OutboxJob[dict[str, Any]]) -> None:
         """Notify listeners of outbox job status changes."""
         try:
             self.session.execute(
-                select(func.pg_notify(self.settings.output_channel, job.model_dump_json()))
+                select(
+                    func.pg_notify(self.settings.output_channel, job.model_dump_json())
+                )
             )
             self.session.flush()
             logger.debug(

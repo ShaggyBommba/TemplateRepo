@@ -13,7 +13,7 @@ repos:
         language: system
         types: [python]
         # Optional: Restrict to src and tests if you don't want it running on root scripts
-        files: ^(src|tests)/ 
+        files: ^(src|tests)/
 
       - id: ruff-format
         name: Ruff Formatter

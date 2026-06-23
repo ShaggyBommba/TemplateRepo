@@ -64,4 +64,3 @@ class OutboxJob(DomainModel, Generic[PayloadT]):
         if cls is None:
             raise ValueError(f"No event class registered for {key}")
         return cls(payload=self.payload, id=self.id, trace_id=self.trace_id)
-

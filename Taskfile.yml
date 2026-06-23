@@ -1,8 +1,8 @@
 version: "3"
 
 vars:
-  IMAGE: ghcr.io/ShaggyBommba/bazzpara
-  REGISTRY: bazzpara
+  IMAGE: ghcr.io/your-org/template
+  CONTAINER: template
   TAG: latest
 
 tasks:
@@ -26,6 +26,21 @@ tasks:
     cmds:
       - uv run python -m ruff format src tests
 
+  format-check:
+    desc: Check backend formatting
+    cmds:
+      - uv run python -m ruff format --check src tests
+
+  hooks:
+    desc: Run pre-commit hooks
+    cmds:
+      - uv run pre-commit run --config .github/hooks/.pre-commit-config.yaml --all-files
+
+  install-hooks:
+    desc: Install local git hooks
+    cmds:
+      - uv run pre-commit install --config .github/hooks/.pre-commit-config.yaml
+
   css:
     desc: Build the HTMX stylesheet (Tailwind + daisyUI, no Node)
     cmds:
@@ -39,13 +54,14 @@ tasks:
   check:
     desc: Run backend checks
     cmds:
+      - task: format-check
       - task: lint
       - task: test
 
   infra:
     desc: Start infrastructure containers if they are not already running
     cmds:
-      - docker-compose -f infrastructure/docker-compose.yml --profile infrastructure up -d
+      - docker compose -f infrastructure/docker-compose.yml --profile infrastructure up -d
     status:
       - docker compose -f infrastructure/docker-compose.yml ps --format json db | grep -q '"State":"running"'
 
@@ -64,31 +80,30 @@ tasks:
       - rm -rf .pytest_cache .ruff_cache src/*.egg-info
 
   build:
-      desc: Build the Docker image
-      cmds:
-        - docker build -t {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}} .
+    desc: Build the Docker image
+    cmds:
+      - docker build -t {{.IMAGE}}:{{.TAG}} .
 
   push:
     desc: Push the Docker image to the registry
     deps: [build]
     cmds:
-      - docker push {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}}
+      - docker push {{.IMAGE}}:{{.TAG}}
 
   deploy:
     desc: Deploy the Docker image to production
     deps: [push]
     cmds:
-      - echo "Deploying {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}} to production..."
+      - echo "Deploying {{.IMAGE}}:{{.TAG}} to production..."
       - >
-        docker run -d --name {{.IMAGE}}
-        -p ${{APP_API_PORT}}:${{APP_API_PORT}}
-        -p ${{APP_HTMX_PORT}}:${{APP_HTMX_PORT}}
-        -p ${{APP_MCP_PORT}}:${{APP_MCP_PORT}}
-        {{.REGISTRY}}/{{.IMAGE}}:{{.TAG}}
-  
+        docker run -d --name {{.CONTAINER}}
+        -e APP_API_PORT="${APP_API_PORT:-8060}"
+        -e APP_HTMX_PORT="${APP_HTMX_PORT:-8061}"
+        -p "${APP_API_PORT:-8060}:${APP_API_PORT:-8060}"
+        -p "${APP_HTMX_PORT:-8061}:${APP_HTMX_PORT:-8061}"
+        {{.IMAGE}}:{{.TAG}}
+
   default:
     desc: Show all tasks
     cmds:
       - task --list
-  
-  

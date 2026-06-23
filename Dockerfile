@@ -5,7 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PATH="/opt/venv/bin:${PATH}"
+    PATH="/opt/venv/bin:${PATH}" \
+    APP_API_HOST=0.0.0.0 \
+    APP_HTMX_HOST=0.0.0.0
 
 WORKDIR /app
 

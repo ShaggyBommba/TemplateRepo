@@ -9,6 +9,7 @@ class JobStatus(StrEnum):
     DONE = "done"
     FAILED = "failed"
 
+
 class EventTopic(StrEnum):
     """Event topic, used for categorization and routing."""
 
