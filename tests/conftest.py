@@ -57,12 +57,21 @@ def infrastructure() -> Iterator[None]:
     env(path)
 
     logger.info("Starting test infrastructure...")
-    run(["task", "infra:up"])
+    run(["docker", "compose", 
+        "-f", "infrastructure/docker-compose.yml", 
+        "--profile", "infrastructure", 
+        "up", "-d"
+    ])
 
     yield
 
     logger.info("Stopping test infrastructure...")
-    run(["task", "infra:down"])
+    run([
+        "docker", "compose", 
+        "-f", "infrastructure/docker-compose.yml", 
+        "--profile", "infrastructure", 
+        "down", "--volumes", "--remove-orphans"
+    ])
 
 
 @pytest.fixture(scope="session", autouse=True)
