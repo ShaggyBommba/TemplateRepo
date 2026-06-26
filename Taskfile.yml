@@ -48,18 +48,13 @@ tasks:
   db:update:
     desc: Apply database migrations
     cmds:
-      - uv run alembic upgrade head
+      - uv run python -m infrastructure.persistence.migrations upgrade
 
   db:migration:
-    desc: Generate a database migration from SQLAlchemy models
+    desc: Create a manual database migration revision
     cmds:
       - '[ -n "{{.CLI_ARGS}}" ] || (echo "Usage: task db:migration -- <message>" && exit 1)'
-      - uv run alembic revision --autogenerate -m "{{.CLI_ARGS}}"
-
-  db:check:
-    desc: Check whether SQLAlchemy models have unapplied migration changes
-    cmds:
-      - uv run alembic check
+      - uv run python -m infrastructure.persistence.migrations revision "{{.CLI_ARGS}}"
 
   check:
     desc: Run backend checks

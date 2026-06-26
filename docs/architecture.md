@@ -21,7 +21,7 @@ src/
   infrastructure/  # concrete adapters, persistence, config, logging
   presentation/    # HTTP, worker, CLI, or other process entrypoints
   main.py          # optional local process launcher
-migrations/        # Alembic migration environment and revision scripts
+migrations/        # SQL migration revision files
 tests/             # pytest behavior tests
 docs/              # architecture, rules, workflows, and test guidance
 ```
@@ -52,7 +52,7 @@ Rules:
 | Component | Owns | Does not own | Locations |
 | --- | --- | --- | --- |
 | Handler / controller | Entry points, request parsing, response formatting, expected error translation | Business rules, persistence details, concrete client construction | `src/presentation/*/routes/`, `src/application/handlers/` |
-| Service / use case | Business workflow coordination, port calls, transaction boundaries, local truth checks | HTTP details, ORM rows, provider SDK details | `src/application/usecases/`, `src/application/services/` |
+| Service / use case | Business workflow coordination, port calls, transaction boundaries, local truth checks | HTTP details, persistence rows, provider SDK details | `src/application/usecases/`, `src/application/services/` |
 | Domain entity / value object | Invariants, identity, immutable state transitions, validation | Repositories, config, logging, framework concerns | `src/domain/entity.py`, `src/domain/value.py`, `src/domain/error.py` |
 | Event | Decoupled work contract, topic/kind/version routing, durable payload shape | Executing behavior, formatting responses, queue storage mechanics | `src/domain/event.py`, `src/application/handlers/`, `src/application/services/` |
 | Port / adapter | Swappable dependency contracts and concrete infrastructure translation | Domain decisions, transport response formatting | `src/application/adapters/core.py`, `src/infrastructure/` |
@@ -393,6 +393,51 @@ Trigger and observe:
 - The worker claims the job and the status streams `pending -> running -> done`
   over `GET /jobs/ws/{job_id}`; per-beat progress is logged at `info`.
 
+## Metrics And Observability
+
+Metrics are a Prometheus pull-based surface owned by the observability layer, not
+an application port. They follow the same cross-cutting precedent as logging:
+application code uses the metrics library directly where it already logs, and no
+application port, return shape, or persistence model is expanded for diagnostics.
+
+The pieces are:
+
+- `MetricsSettings` in `src/infrastructure/config.py` (`APP_METRICS__*`) holds
+  `enabled`, the scrape `path` (default `/metrics`), and the worker exposition
+  `worker_port` (default `9108`).
+- `MetricsService` in `src/infrastructure/observability/metrics.py` exposes two
+  helpers. `expose(app, settings)` adds `PrometheusMiddleware` and the scrape
+  endpoint to a FastAPI app. `serve(settings)` starts a standalone
+  `prometheus_client` exposition server for the non-HTTP worker. Both are no-ops
+  when `enabled` is false.
+- `PrometheusMiddleware` records RED request metrics
+  (`http_requests_total{method,path,status}` and
+  `http_request_duration_seconds{method,path}`). It labels by the matched route
+  template (`/jobs/{job_id}`), not the raw path, and collapses unmatched paths to
+  one `__unmatched__` series to keep label cardinality bounded. The template is
+  read from the request's matched route, so it does not re-scan `app.routes`.
+- HTTP RED metrics are wired at the presentation edge: both `presentation/api/app.py`
+  and `presentation/htmx/app.py` call `MetricsService.expose(fastapi_app,
+  settings.metrics)` in their factory, so `/metrics` is a transport surface.
+- The worker entrypoint `presentation/worker/app.py` calls
+  `MetricsService.serve(app.settings.metrics)` after `get_app()`, so its business
+  metrics are exposed on `worker_port`.
+
+Business metrics live with the workflow that emits them. `application/services/outbox.py`
+defines module-level `prometheus_client` metrics next to its module logger:
+
+- `outbox_jobs_total` (Counter, labels `topic`, `kind`, `result`) counts terminal
+  job outcomes (`done`/`failed`).
+- `outbox_dispatch_seconds` (Histogram, labels `topic`, `kind`) times handler
+  dispatch.
+
+These register against the default Prometheus registry, so every exposition
+surface (`api`, `htmx`, and the worker) publishes them without extra wiring. A
+process only reports counts for work it actually runs, so outbox values advance in
+the worker process. To add metrics for a new workflow, define the
+`prometheus_client` metric beside the service that owns it and increment it at the
+decision point, the same way logging is used.
+
 ## Service / Use Case Blueprint
 
 Use cases coordinate behavior. They should read as a small sequence:
@@ -429,12 +474,12 @@ class CreateThingUseCase:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self.uow_factory = uow_factory
 
-    def __call__(self, raw_name: str) -> Thing:
+    async def __call__(self, raw_name: str) -> Thing:
         thing = Thing.create(ThingName(value=raw_name))
 
-        with self.uow_factory() as uow:
-            uow.things.add(thing)
-            uow.commit()
+        async with self.uow_factory() as uow:
+            await uow.things.add(thing)
+            await uow.commit()
 
         return thing
 
@@ -445,15 +490,15 @@ class RenameThingUseCase:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self.uow_factory = uow_factory
 
-    def __call__(self, thing_id: str, raw_name: str) -> Thing:
-        with self.uow_factory() as uow:
-            thing = uow.things.get(thing_id)
+    async def __call__(self, thing_id: str, raw_name: str) -> Thing:
+        async with self.uow_factory() as uow:
+            thing = await uow.things.get(thing_id)
             if thing is None:
                 raise ThingNotFound(f"thing {thing_id} was not found")
 
             renamed = thing.rename(ThingName(value=raw_name))
-            uow.things.add(renamed)
-            uow.commit()
+            await uow.things.add(renamed)
+            await uow.commit()
             return renamed
 ```
 
@@ -463,7 +508,7 @@ Use case rules:
 - Keep transaction boundaries explicit.
 - Put workflow decisions here, not in repositories or controllers.
 - Validate adapter output before it drives writes or state transitions.
-- Return the domain object or a dedicated DTO; do not return ORM rows.
+- Return the domain object or a dedicated DTO; do not return persistence rows.
 
 ## Domain Entity And Value Object Blueprint
 
@@ -549,43 +594,54 @@ from domain.entity import Thing
 
 @runtime_checkable
 class ThingRepo(Protocol):
-    def add(self, entity: Thing, /) -> Thing: ...
-    def get(self, entity_id: str, /) -> Thing | None: ...
-    def list(self) -> list[Thing]: ...
+    async def add(self, entity: Thing, /) -> Thing: ...
+    async def get(self, entity_id: str, /) -> Thing | None: ...
+    async def list(self) -> list[Thing]: ...
 
 
 @runtime_checkable
 class UnitOfWork(Protocol):
     things: ThingRepo
 
-    def __enter__(self) -> UnitOfWork: ...
-    def __exit__(self, exc_type, exc, tb) -> None: ...
-    def commit(self) -> None: ...
-    def rollback(self) -> None: ...
+    async def __aenter__(self) -> UnitOfWork: ...
+    async def __aexit__(self, exc_type, exc, tb) -> None: ...
+    async def commit(self) -> None: ...
+    async def rollback(self) -> None: ...
 ```
 
 Implement adapters in `src/infrastructure/`:
 
 ```python
-class ThingRepoSql:
-    """SQL-backed Thing repository."""
+class ThingRepo:
+    """asyncpg-backed Thing repository."""
 
-    def __init__(self, session) -> None:
-        self.session = session
+    def __init__(self, conn) -> None:
+        self.conn = conn
 
-    def add(self, entity: Thing) -> Thing:
-        self.session.merge(ThingRow.from_domain(entity))
+    async def add(self, entity: Thing) -> Thing:
+        await self.conn.execute(
+            """
+            INSERT INTO things (id, name)
+            VALUES ($1, $2)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+            """,
+            entity.id,
+            entity.name.value,
+        )
         return entity
 
-    def get(self, entity_id: str) -> Thing | None:
-        row = self.session.get(ThingRow, entity_id)
-        return row.to_domain() if row else None
+    async def get(self, entity_id: str) -> Thing | None:
+        row = await self.conn.fetchrow(
+            "SELECT id, name FROM things WHERE id = $1",
+            entity_id,
+        )
+        return Thing(id=row["id"], name=ThingName(value=row["name"])) if row else None
 ```
 
 Adapter rules:
 
 - Translate infrastructure data into domain objects at the boundary.
-- Keep provider SDKs, ORM sessions, and filesystem details out of use cases.
+- Keep provider SDKs, database connections, and filesystem details out of use cases.
 - Do not hide workflow decisions inside repositories.
 - Make external dependencies explicit in constructors.
 
@@ -617,15 +673,15 @@ class ThingCreated(Event[dict[str, str]]):
 Append durable event work through a unit of work:
 
 ```python
-with app.uow() as uow:
-    job = uow.outbox.append(
+async with app.uow() as uow:
+    job = await uow.outbox.append(
         ThingCreated.topic,
         ThingCreated.kind,
         {"name": request.name},
         ThingCreated.version,
         idempotency_key=f"thing:create:{request.name}",
     )
-    uow.commit()
+    await uow.commit()
 return {"job_id": job.id}
 ```
 
@@ -663,21 +719,19 @@ Event rules:
 infrastructure for composition.
 
 Schema changes are explicit infrastructure operations. Runtime app startup does
-not create or migrate tables. Apply migrations through `task db:update`, create
-new autogenerated revisions through `task db:migration -- <message>`, and check
-for model/schema drift through `task db:check`.
+not create or migrate tables. Apply migrations through `task db:update` and
+create manual revisions through `task db:migration -- <message>`.
 
-Postgres is the supported application database. `DatabaseSettings` always builds
-Postgres DSNs for SQLAlchemy and psycopg from `APP_DATABASE__*` settings.
+Postgres is the supported application database. Runtime persistence and
+migration execution both use `asyncpg` from the `APP_DATABASE__*` settings.
 
-Alembic is configured in `alembic.ini` and `migrations/env.py`. The environment
-loads `infrastructure.persistence.models`, uses
-`infrastructure.persistence.database.Base.metadata` as the autogenerate target,
-and reads the database URL from `Settings.database.dsn`, so it follows the same
-`APP_DATABASE__*` settings as the application. Autogenerate ignores reflected
-database tables that are not represented in application metadata, because the
-local Postgres database may also contain infrastructure-owned tables such as
-Keycloak's schema. Revision scripts live under `migrations/versions/`.
+The migration runner lives in `src/infrastructure/persistence/migrations.py`.
+It loads manual `.sql` files from `migrations/versions/`, executes pending
+revisions in dependency order with asyncpg, and records applied revisions in
+`schema_migrations`. SQL files declare `revision` and `down_revision` in leading
+SQL comments. The runner recognizes an existing `alembic_version` row only to
+seed `schema_migrations` during the one-time transition from older template
+databases.
 
 ```python
 class App:
@@ -685,7 +739,7 @@ class App:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.database = SqlDatabase(settings.database)
+        self.database = AsyncpgDatabase(settings.database)
 
         self.create_thing = CreateThingUseCase(self.uow)
         self.rename_thing = RenameThingUseCase(self.uow)
@@ -704,8 +758,8 @@ class App:
         )
 
     def uow(self) -> UnitOfWork:
-        return SqlUnitOfWork(
-            self.database.sessions(),
+        return AsyncpgUnitOfWork(
+            self.database,
             self.settings.outbox,
         )
 ```

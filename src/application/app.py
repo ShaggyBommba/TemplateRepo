@@ -15,8 +15,8 @@ from domain.event import Heartbeat
 from infrastructure.auth.keycloak import KeycloakVerifier
 from infrastructure.config import Settings, get_settings
 from infrastructure.observability.logger import LoggingService
-from infrastructure.persistence.database import SqlDatabase
-from infrastructure.persistence.uow import SqlUnitOfWork
+from infrastructure.persistence.database import AsyncpgDatabase
+from infrastructure.persistence.uow import AsyncpgUnitOfWork
 
 logger = getLogger(__name__)
 
@@ -26,7 +26,7 @@ class App:
     """Application facade used by entrypoints."""
 
     settings: Settings
-    database: SqlDatabase
+    database: AsyncpgDatabase
     dispatcher: EventDispatcher
     authenticate: Authenticate
     authorize: Authorize
@@ -36,12 +36,12 @@ class App:
 
     @classmethod
     def create(cls, settings: Settings) -> App:
-        database = SqlDatabase(settings.database)
+        database = AsyncpgDatabase(settings.database)
         dispatcher = EventDispatcher()
 
         def uow_factory() -> UnitOfWork:
-            return SqlUnitOfWork(
-                database.sessions(),
+            return AsyncpgUnitOfWork(
+                database,
                 settings.outbox,
             )
 
@@ -88,9 +88,9 @@ class App:
         return True
 
     def uow(self) -> UnitOfWork:
-        """Build one SQL unit of work for app-boundary callers."""
-        return SqlUnitOfWork(
-            self.database.sessions(),
+        """Build one asyncpg unit of work for app-boundary callers."""
+        return AsyncpgUnitOfWork(
+            self.database,
             self.settings.outbox,
         )
 
@@ -101,7 +101,7 @@ class App:
     async def close(self) -> None:
         """Close the application."""
         logger.info(f"Closing {self.name}...")
-        self.database.close()
+        await self.database.close()
 
     async def daemon(self) -> None:
         """Run background tasks."""

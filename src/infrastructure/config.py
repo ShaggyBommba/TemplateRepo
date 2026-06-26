@@ -28,18 +28,15 @@ class DatabaseSettings(BaseModel):
     ssl_mode: str | None = None
 
     @property
-    def dsn(self) -> str:
-        return (
-            f"postgresql+psycopg://{self.user}:{self.password.get_secret_value()}"
-            f"@{self.host}:{self.port}/{self.database}"
-        )
-
-    @property
-    def psycopg_dsn(self) -> str:
+    def asyncpg_dsn(self) -> str:
         return (
             f"postgresql://{self.user}:{self.password.get_secret_value()}"
             f"@{self.host}:{self.port}/{self.database}"
         )
+
+    @property
+    def dsn(self) -> str:
+        return self.asyncpg_dsn
 
 
 class OutboxSettings(BaseModel):
@@ -56,6 +53,14 @@ class HeartbeatSettings(BaseModel):
     beats: int = Field(default=3, ge=1)
     interval: float = Field(default=1.0, gt=0)
     max_beats: int = Field(default=60, ge=1)
+
+
+class MetricsSettings(BaseModel):
+    """Configuration for Prometheus metrics exposition."""
+
+    enabled: bool = True
+    path: str = "/metrics"
+    worker_port: int = Field(default=9108, ge=1)
 
 
 class KeycloakSettings(BaseModel):
@@ -123,6 +128,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     outbox: OutboxSettings = Field(default_factory=OutboxSettings)
     heartbeat: HeartbeatSettings = Field(default_factory=HeartbeatSettings)
+    metrics: MetricsSettings = Field(default_factory=MetricsSettings)
     keycloak: KeycloakSettings = Field(default_factory=KeycloakSettings)
     session: SessionSettings = Field(default_factory=SessionSettings)
 

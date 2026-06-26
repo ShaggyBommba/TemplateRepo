@@ -102,9 +102,7 @@ jobs:
         run: uv run python -m ruff check src tests migrations
 
       - name: Validate migrations
-        run: |
-          uv run alembic upgrade head
-          uv run alembic check
+        run: uv run python -m infrastructure.persistence.migrations upgrade
 
       - name: Test
         run: uv run python -m pytest

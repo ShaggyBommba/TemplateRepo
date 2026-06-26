@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from logging import getLogger
 from os import environ
 from pathlib import Path
 import subprocess
 
+from asyncpg import utils
+import asyncpg
 import dotenv
 import pytest
-from psycopg import connect, sql
-from psycopg.errors import DuplicateDatabase
 
 from infrastructure.config import Settings, get_settings
 
@@ -95,39 +96,28 @@ def database(infrastructure: None) -> Iterator[None]:
     settings = get_settings(env_file=path)
 
     logger.info(f"Creating test database: {TEST_DB}")
-    with connect(settings.database.psycopg_dsn, autocommit=True) as conn:
-        with conn.cursor() as cursor:
-            try:
-                cursor.execute(
-                    sql.SQL("CREATE DATABASE {}").format(sql.Identifier(TEST_DB))
-                )
-            except DuplicateDatabase:
-                logger.info("Test database already exists, continuing")
+    asyncio.run(create_database(settings, TEST_DB))
 
     sandbox = environ.copy()
     sandbox["APP_DATABASE__DATABASE"] = TEST_DB
 
-    logger.info(f"Running Alembic migrations on test database: {TEST_DB}")
+    logger.info(f"Running migrations on test database: {TEST_DB}")
     run(
-        ["uv", "run", "alembic", "upgrade", "head"],
+        [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "infrastructure.persistence.migrations",
+            "upgrade",
+        ],
         env=sandbox,
     )
 
     yield
 
     logger.info(f"Dropping test database: {TEST_DB}")
-    with connect(settings.database.psycopg_dsn, autocommit=True) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                sql.SQL(
-                    "SELECT pg_terminate_backend(pid) "
-                    "FROM pg_stat_activity WHERE datname = %s"
-                ),
-                (TEST_DB,),
-            )
-            cursor.execute(
-                sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(TEST_DB))
-            )
+    asyncio.run(drop_database(settings, TEST_DB))
 
 
 @pytest.fixture(scope="session")
@@ -139,3 +129,25 @@ def settings(database) -> Settings:
     settings = get_settings(env_file=path)
     database = settings.database.model_copy(update={"database": TEST_DB})
     return settings.model_copy(update={"database": database})
+
+
+async def create_database(settings: Settings, name: str) -> None:
+    conn = await asyncpg.connect(settings.database.asyncpg_dsn)
+    try:
+        await conn.fetchval("SELECT format('CREATE DATABASE %I', $1::text)", name)
+    except asyncpg.DuplicateDatabaseError:
+        logger.info("Test database already exists, continuing")
+    finally:
+        await conn.close()
+
+
+async def drop_database(settings: Settings, name: str) -> None:
+    conn = await asyncpg.connect(settings.database.asyncpg_dsn)
+    try:
+        await conn.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1",
+            name,
+        )
+        await conn.fetchval("SELECT format('DROP DATABASE IF EXISTS %I WITH (FORCE)', $1::text)", name)
+    finally:
+        await conn.close()

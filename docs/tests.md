@@ -32,7 +32,7 @@ task sync
 
 The default suite is infrastructure-backed. `tests/conftest.py` loads `.env`,
 starts local infrastructure with `task infra:up`, creates a fresh Postgres test
-database named `test`, applies Alembic migrations, and exposes a `settings`
+database named `test`, applies asyncpg migrations, and exposes a `settings`
 fixture whose database points at that test database. Tests should construct real
 application wiring with:
 
@@ -40,13 +40,13 @@ application wiring with:
 app = App.create(settings)
 ```
 
-Use that app, its SQL unit of work, and the framework test clients to exercise
+Use that app, its asyncpg unit of work, and the framework test clients to exercise
 behavior through the same boundaries the service uses locally. Do not construct
 mock repositories or mock use cases when the configured local infrastructure can
 provide the dependency.
 
-Use `with app.uow() as uow:` when a test needs direct repository or transaction
-access for setup, cleanup, or infrastructure-level assertions.
+Use `async with app.uow() as uow:` when a test needs direct repository or
+transaction access for setup, cleanup, or infrastructure-level assertions.
 
 The local `.env` file is required for infrastructure-backed tests. Copy
 `.env.example` to `.env` and keep the configured Postgres port aligned with
@@ -124,15 +124,15 @@ boundary wired with real local infrastructure:
 Use the Arrange, Act, Assert shape:
 
 ```python
-def test_request_heartbeat_persists_pending_job(settings: Settings) -> None:
+async def test_request_heartbeat_persists_pending_job(settings: Settings) -> None:
     # Arrange
     app = App.create(settings)
 
     # Act
-    job = app.request_heartbeat(beats=2, interval=0.01)
+    job = await app.request_heartbeat(beats=2, interval=0.01)
 
     # Assert
-    loaded = app.get_job_status(job.id)
+    loaded = await app.get_job_status(job.id)
     assert loaded.payload == {"beats": 2, "interval": 0.01}
     assert loaded.status == JobStatus.PENDING
 ```
@@ -212,7 +212,7 @@ Domain and application tests:
 Service tests:
 
 - assert queue claim, event dispatch, retry, and idempotency behavior
-- prefer the SQL unit of work and migrated outbox table
+- prefer the asyncpg unit of work and migrated outbox table
 
 Infrastructure tests:
 

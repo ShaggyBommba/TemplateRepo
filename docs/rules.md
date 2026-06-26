@@ -100,7 +100,7 @@ UserRepo
 JobRepo
 OutboxRepo
 Queue
-SqlDatabase
+Database
 UnitOfWork
 ```
 
@@ -427,8 +427,8 @@ Use join tables or association models for many-to-many relationships.
 
 Keep persistence concerns out of the domain layer unless
 `docs/architecture.md` explicitly documents a shared domain/persistence model.
-ORM sessions, migrations, vector indexes, and provider-specific fields belong
-in infrastructure.
+Database connections, migrations, vector indexes, and provider-specific fields
+belong in infrastructure.
 
 Put row-to-domain conversion at the infrastructure boundary. For ORM-backed
 storage, prefer methods or small mappers next to the persistence row/repository

@@ -17,19 +17,19 @@ SearchResultT = TypeVar("SearchResultT")
 class CrudRepo(Protocol[EntityT]):
     """Persists domain entities with basic CRUD operations."""
 
-    def add(self, entity: EntityT, /) -> EntityT:
+    async def add(self, entity: EntityT, /) -> EntityT:
         """Insert or update an entity by primary key (idempotent)."""
         ...
 
-    def get(self, entity_id: str, /) -> EntityT | None:
+    async def get(self, entity_id: str, /) -> EntityT | None:
         """Read one entity by id."""
         ...
 
-    def list(self, *args, **kwargs: Any) -> list[EntityT]:
+    async def list(self, *args, **kwargs: Any) -> list[EntityT]:
         """Read all entities."""
         ...
 
-    def remove(self, entity_id: str, /) -> EntityT | None:
+    async def remove(self, entity_id: str, /) -> EntityT | None:
         """Remove one entity by id. Return the removed entity or None if not found."""
         ...
 
@@ -38,7 +38,7 @@ class CrudRepo(Protocol[EntityT]):
 class JobRepo(Protocol):
     """Reads background job status by identifier."""
 
-    def get(self, job_id: str, /) -> OutboxJob | None:
+    async def get(self, job_id: str, /) -> OutboxJob | None:
         """Read one job by id."""
         ...
 
@@ -47,35 +47,35 @@ class JobRepo(Protocol):
 class OutboxRepo(Protocol):
     """Persists durable queued work."""
 
-    def append(
+    async def append(
         self,
         topic: EventTopic,
         kind: EventKind,
-        payload: dict[str, Any] | object,
+        payload: dict[str, Any],
         version: int = 1,
-        max_attempts: int | None = None,
+        max_attempts: int = 3,
         idempotency_key: str | None = None,
     ) -> OutboxJob:
         """Insert or revive one idempotent outbox job."""
         ...
 
-    def get(self, job_id: str, /) -> OutboxJob | None:
+    async def get(self, job_id: str, /) -> OutboxJob | None:
         """Read one job by id."""
         ...
 
-    def due(
+    async def due(
         self, topic: EventTopic, kind: EventKind, version: int, limit: int
     ) -> list[OutboxJob]:
         """Read ready pending jobs without claiming them."""
         ...
 
-    def claim(
+    async def claim(
         self, topic: EventTopic, kind: EventKind, version: int, limit: int
     ) -> list[OutboxJob]:
         """Claim ready pending jobs for processing."""
         ...
 
-    def mark(
+    async def mark(
         self,
         job_id: str,
         status: JobStatus,
@@ -94,11 +94,11 @@ class UnitOfWork(Protocol):
     job: JobRepo
     outbox: OutboxRepo
 
-    def __enter__(self) -> UnitOfWork:
+    async def __aenter__(self) -> UnitOfWork:
         """Open one transactional session and expose repositories."""
         ...
 
-    def __exit__(
+    async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
@@ -107,11 +107,11 @@ class UnitOfWork(Protocol):
         """Rollback uncommitted work and close the session."""
         ...
 
-    def commit(self) -> None:
+    async def commit(self) -> None:
         """Commit all staged repository changes atomically."""
         ...
 
-    def rollback(self) -> None:
+    async def rollback(self) -> None:
         """Rollback all staged repository changes."""
         ...
 

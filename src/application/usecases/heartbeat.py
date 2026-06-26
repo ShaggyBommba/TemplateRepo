@@ -25,7 +25,7 @@ class RequestHeartbeatUseCase:
         self.default_interval = default_interval
         self.max_beats = max_beats
 
-    def __call__(
+    async def __call__(
         self,
         beats: int | None = None,
         interval: float | None = None,
@@ -35,13 +35,13 @@ class RequestHeartbeatUseCase:
             "interval": interval or self.default_interval,
         }
 
-        with self.uow_factory() as uow:
-            job = uow.outbox.append(
+        async with self.uow_factory() as uow:
+            job = await uow.outbox.append(
                 Heartbeat.topic,
                 Heartbeat.kind,
                 payload,
                 Heartbeat.version,
             )
-            uow.commit()
+            await uow.commit()
 
         return job

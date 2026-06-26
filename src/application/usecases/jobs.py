@@ -15,9 +15,9 @@ class GetJobStatusUseCase:
     def __init__(self, uow_factory: Callable[[], UnitOfWork]) -> None:
         self.uow_factory = uow_factory
 
-    def __call__(self, job_id: str) -> OutboxJob[dict[str, object]]:
-        with self.uow_factory() as uow:
-            job = uow.job.get(job_id)
+    async def __call__(self, job_id: str) -> OutboxJob[dict[str, object]]:
+        async with self.uow_factory() as uow:
+            job = await uow.job.get(job_id)
             if job is None:
                 raise JobNotFound(job_id)
             return job

@@ -69,7 +69,7 @@ class HeartbeatTriggerResponse(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
     name="admin_heartbeat",
 )
-def admin_heartbeat(
+async def admin_heartbeat(
     request: Request,
     payload: HeartbeatTriggerRequest,
     app: App = Depends(get_app),
@@ -90,7 +90,7 @@ def admin_heartbeat(
             },
         )
 
-    job = app.request_heartbeat(payload.beats, payload.interval)
+    job = await app.request_heartbeat(payload.beats, payload.interval)
     return HeartbeatTriggerResponse(job_id=job.id)
 
 

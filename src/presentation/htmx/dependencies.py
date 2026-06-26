@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import Response
 from jinja2_fragments.fastapi import Jinja2Blocks
 from pydantic import BaseModel
 
@@ -30,7 +30,7 @@ def render(
     context: dict[str, Any],
     *,
     block: str = "content",
-) -> HTMLResponse:
+) -> Response:
     """Render a full page, or just the content block for targeted HTMX swaps.
 
     Boosted navigation (``HX-Boosted``) still needs the whole document so the

@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from application.app import get_app
 from infrastructure.config import get_settings
+from infrastructure.observability.metrics import MetricsService
 from presentation.api.routes.auth import routes as auth_routes
 from presentation.api.routes.jobs import routes as jobs_routes
 from presentation.api.routes.system import routes as system_routes
@@ -39,6 +40,8 @@ def api() -> FastAPI:
     fastapi_app.include_router(auth_routes)
     fastapi_app.include_router(jobs_routes)
     fastapi_app.include_router(system_routes)
+
+    MetricsService.expose(fastapi_app, settings.metrics)
 
     return fastapi_app
 

@@ -13,6 +13,7 @@ from jinja2_fragments.fastapi import Jinja2Blocks
 
 from application.app import get_app
 from infrastructure.config import get_settings
+from infrastructure.observability.metrics import MetricsService
 from presentation.htmx.routes.admin import routes as admin_routes
 from presentation.htmx.routes.auth import routes as auth_routes
 from presentation.htmx.routes.home import routes as home_routes
@@ -47,6 +48,8 @@ def api() -> FastAPI:
     fastapi_app.include_router(admin_routes)
     fastapi_app.include_router(auth_routes)
     fastapi_app.include_router(home_routes)
+
+    MetricsService.expose(fastapi_app, settings.metrics)
 
     return fastapi_app
 

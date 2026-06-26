@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from jinja2_fragments.fastapi import Jinja2Blocks
 
 from application.app import App, get_app
@@ -19,7 +19,7 @@ def index(
     request: Request,
     app: App = Depends(get_app),
     templates: Jinja2Blocks = Depends(template_engine),
-) -> HTMLResponse:
+) -> Response:
     settings = get_settings()
     return render(
         request,
